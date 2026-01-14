@@ -1,0 +1,33 @@
+rules:
+  # Bronze (mandatory)
+  config-flow: done
+  config-flow-test-coverage: done
+  entity-unique-id: done
+  action-setup:
+    status: exempt
+    comment: Integration does not register custom actions.
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  dependency-transparency: done
+  docs-actions: done
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+
+  # Silver (if targeting Silver+)
+  entity-unavailable: todo
+  parallel-updates: todo
+
+  # Gold (if targeting Gold+)
+  devices: todo
+  diagnostics: todo
+
+  # Platinum (if targeting Platinum)
+  strict-typing: todo
