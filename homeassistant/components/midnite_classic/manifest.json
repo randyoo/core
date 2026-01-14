@@ -1,0 +1,20 @@
+{
+  "domain": "midnite_classic",
+  "name": "Midnite Classic",
+  "codeowners": ["@randyoo"],
+  "config_flow": true,
+  "dependencies": [],
+  "dhcp": [
+    {
+      "hostname": "*",
+      "macaddress": "601D0F*"
+    }
+  ],
+  "documentation": "https://www.home-assistant.io/integrations/midnite_classic",
+  "homekit": {},
+  "iot_class": "local_polling",
+  "quality_scale": "bronze",
+  "requirements": [],
+  "ssdp": [],
+  "zeroconf": []
+}
