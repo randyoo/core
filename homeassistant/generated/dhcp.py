@@ -413,6 +413,11 @@ DHCP: Final[list[dict[str, str | bool]]] = [
         "macaddress": "00D02D*",
     },
     {
+        "domain": "midnite_classic",
+        "hostname": "*",
+        "macaddress": "601D0F*",
+    },
+    {
         "domain": "motion_blinds",
         "registered_devices": True,
     },

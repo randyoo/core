@@ -415,6 +415,7 @@ FLOWS = {
         "meteoclimatic",
         "metoffice",
         "microbees",
+        "midnite_classic",
         "miele",
         "mikrotik",
         "mill",
