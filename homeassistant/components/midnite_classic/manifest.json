@@ -3,7 +3,6 @@
   "name": "Midnite Classic",
   "codeowners": ["@randyoo"],
   "config_flow": true,
-  "dependencies": ["modbus"],
   "dhcp": [
     {
       "hostname": "*",
@@ -13,5 +12,5 @@
   "documentation": "https://www.home-assistant.io/integrations/midnite_classic",
   "iot_class": "local_polling",
   "quality_scale": "bronze",
-  "requirements": []
+  "requirements": ["pymodbus==3.11.2"]
 }
