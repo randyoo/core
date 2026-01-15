@@ -7,15 +7,7 @@ from datetime import timedelta
 import logging
 from typing import Any
 
-try:
-    import pymodbus
-
-    try:
-        from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
-    except ImportError:
-        ReadHoldingRegistersResponse = None  # type: ignore[misc, assignment]
-except ImportError:
-    pymodbus = None  # type: ignore[assignment]
+import pymodbus
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
