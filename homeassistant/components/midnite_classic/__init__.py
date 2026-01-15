@@ -30,6 +30,7 @@ async def async_setup_entry(
         hass,
         host=entry.data[CONF_HOST],
         port=entry.data[CONF_PORT],
+        config_entry=entry,
     )
 
     try:

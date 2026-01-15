@@ -1,13 +1,16 @@
 """Support for Midnite Solar devices."""
 
+from __future__ import annotations
+
 import logging
 import threading
 import time
+from typing import TYPE_CHECKING, Any, cast
 
-try:
+if TYPE_CHECKING:
     from pymodbus.client import ModbusTcpClient
-except ImportError:
-    ModbusTcpClient = None  # type: ignore[assignment]
+else:
+    ModbusTcpClient = None
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,9 +23,9 @@ class MidniteClassicHub:
         self.host = host
         self.port = port
         if ModbusTcpClient is not None:
-            self._client = ModbusTcpClient(host=self.host, port=self.port)
+            self._client = cast(Any, ModbusTcpClient(host=self.host, port=self.port))
         else:
-            self._client = None  # type: ignore[assignment]
+            self._client = None
         self._lock = threading.Lock()
 
     def is_still_connected(self) -> bool:
@@ -30,7 +33,7 @@ class MidniteClassicHub:
         if self._client is None:
             return False
         with self._lock:
-            return self._client.is_socket_open()  # type: ignore[union-attr]
+            return cast(Any, self._client).is_socket_open()
 
     def connect(self) -> bool | None:
         """Connect to the Modbus TCP server."""
@@ -39,16 +42,19 @@ class MidniteClassicHub:
             return False
         with self._lock:
             _LOGGER.debug("Connecting to %s:%s", self.host, self.port)
-            return self._client.connect()  # type: ignore[union-attr]
+            result = cast(Any, self._client).connect()
+            _LOGGER.debug("Connection result: %s", result)
+            return result
 
     def disconnect(self) -> bool | None:
         """Disconnect from the Modbus TCP server."""
         if self._client is None:
             return False
         with self._lock:
-            if self._client.is_socket_open():  # type: ignore[union-attr]
+            client = cast(Any, self._client)
+            if client.is_socket_open():
                 _LOGGER.debug("Disconnecting from %s:%s", self.host, self.port)
-                return self._client.close()  # type: ignore[union-attr]
+                return client.close()
             return None
 
     def write_register(self, address: int, value: int) -> bool | None:
@@ -59,60 +65,90 @@ class MidniteClassicHub:
         # Midnite devices use unit_id 1 by default
         with self._lock:
             try:
-                result = self._client.write_register(  # type: ignore[union-attr]
+                result = cast(Any, self._client).write_register(
                     address=address - 1,  # Modbus addresses are 0-indexed
                     value=value,
                     # device_id=1,  # Removed - may cause issues with certain registers
                 )
                 return result.isError() is False
-            except Exception as exc:
+            except OSError as exc:
                 _LOGGER.error("Failed to write register %s: %s", address, exc)
                 raise
 
-    def read_holding_registers(self, address: int, count: int = 1):
+    def read_holding_registers(self, address: int, count: int = 1) -> Any | None:
         """Read holding registers with enhanced retry logic and debug logging."""
         if self._client is None:
             _LOGGER.error("Pymodbus not available")
             return None
-        _LOGGER.debug("Reading unit 1 address %s count %s", address, count)
+
+        # Detailed connection state logging
+        socket_open = cast(Any, self._client).is_socket_open()
+        _LOGGER.debug(
+            "Reading unit 1 address %s count %s. Socket open: %s",
+            address,
+            count,
+            socket_open,
+        )
         # Midnite devices use unit_id 1 by default
 
         max_retries = 5  # Increased from 3 to 5 for better reliability
         with self._lock:
             for attempt in range(max_retries):
                 try:
+                    client = cast(Any, self._client)
                     # Ensure connection is active before reading
-                    if not self._client.is_socket_open():  # type: ignore[union-attr]
+                    if not client.is_socket_open():
                         _LOGGER.debug(
                             "Connection closed, reconnecting before read attempt %s",
                             attempt + 1,
                         )
-                        self.connect()
+                        connect_result = self.connect()
+                        _LOGGER.debug("Connect result: %s", connect_result)
                         # Add a small delay after connect to allow device to stabilize
                         time.sleep(0.2)
 
-                    result = self._client.read_holding_registers(  # type: ignore[union-attr]
-                        address=address - 1,  # Modbus addresses are 0-indexed
+                    # Log detailed request information
+                    modbus_address = address - 1  # Modbus addresses are 0-indexed
+                    _LOGGER.debug(
+                        "Sending Modbus request: address=%s (raw=%s), count=%s, unit=1",
+                        address,
+                        modbus_address,
+                        count,
+                    )
+
+                    result = client.read_holding_registers(
+                        address=modbus_address,
                         count=count,
                         # device_id=1,  # Removed - may cause issues with certain registers like 20492/20493
                     )
+
                     if result is not None and not result.isError():
                         _LOGGER.debug(
-                            "Successfully read address %s: %s",
+                            "Successfully read address %s: %s (raw=%s)",
                             address,
                             result.registers,
+                            modbus_address,
                         )
                         return result
+
+                    # Log detailed error information
+                    error_details = {
+                        "function_code": getattr(result, "function_code", "N/A"),
+                        "exception_code": getattr(result, "exception_code", "N/A"),
+                        "isError": result.isError() if result else "N/A",
+                    }
                     _LOGGER.warning(
-                        "Attempt %s failed for address %s: %s",
+                        "Attempt %s failed for address %s: %s. Details: %s",
                         attempt + 1,
                         address,
                         result,
+                        error_details,
                     )
 
-                except Exception as exc:
+                except OSError as exc:
                     # Special handling for "Unable to decode request" errors
                     error_msg = str(exc)
+                    _LOGGER.debug("Full exception details: %s", exc, exc_info=True)
                     if (
                         "Unable to decode request" in error_msg
                         or "byte_count" in error_msg

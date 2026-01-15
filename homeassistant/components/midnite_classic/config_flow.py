@@ -14,6 +14,13 @@ from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
 
 from .const import DEFAULT_PORT, DOMAIN
 
+# Add scan interval constant if not already present
+try:
+    from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
+except ImportError:
+    CONF_SCAN_INTERVAL = "scan_interval"
+    DEFAULT_SCAN_INTERVAL = 15
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -106,10 +113,8 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
             #     _LOGGER.warning(
             #         f"Could not connect to device at {discovery_info.ip} for model identification"
             #     )
-        except Exception as exc:
-            _LOGGER.warning(
-                "Error reading device model during discovery: %s", exc, exc_info=True
-            )
+        except OSError:
+            _LOGGER.warning("Error reading device model during discovery")
 
         # Log the final title placeholder for debugging
         _LOGGER.warning(
@@ -152,21 +157,12 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
             # For DHCP discovery, pre-fill the host and port from discovery info
             if discovered and CONF_HOST not in user_input:
                 assert self.discovery_info is not None  # For type checking
+                _LOGGER.debug(
+                    "Pre-filling IP address from DHCP discovery: %s",
+                    self.discovery_info.ip,
+                )
                 user_input[CONF_HOST] = self.discovery_info.ip
                 user_input[CONF_PORT] = DEFAULT_PORT
-            elif not discovered and CONF_HOST not in user_input:
-                # Manual entry requires host
-                errors["base"] = "missing_host"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=vol.Schema(
-                        {
-                            vol.Required(CONF_HOST): str,
-                            vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
-                        }
-                    ),
-                    errors=errors,
-                )
 
             # Check for duplicate entries
             self._async_abort_entries_match(
@@ -208,12 +204,19 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
                 else:
                     title = f"Midnite Classic @ {user_input[CONF_HOST]}"
 
+                # Separate scan_interval from data to store in options
+                entry_data = {
+                    CONF_HOST: user_input[CONF_HOST],
+                    CONF_PORT: user_input.get(CONF_PORT, DEFAULT_PORT),
+                }
+                entry_options = {}
+                if CONF_SCAN_INTERVAL in user_input:
+                    entry_options[CONF_SCAN_INTERVAL] = user_input[CONF_SCAN_INTERVAL]
+
                 return self.async_create_entry(
                     title=title,
-                    data={
-                        CONF_HOST: user_input[CONF_HOST],
-                        CONF_PORT: user_input.get(CONF_PORT, DEFAULT_PORT),
-                    },
+                    data=entry_data,
+                    options=entry_options,
                 )
 
         # Show appropriate form based on discovery status
@@ -229,6 +232,9 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_HOST, default=self.discovery_info.ip): str,
                     vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
+                    ): int,
                 }
             )
 
@@ -251,6 +257,9 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required(CONF_HOST): str,
                     vol.Required(CONF_PORT, default=DEFAULT_PORT): int,
+                    vol.Optional(
+                        CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
+                    ): int,
                 }
             ),
             errors=errors,

@@ -60,6 +60,7 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
             _LOGGER,
             name=DOMAIN,
             update_interval=timedelta(seconds=interval),
+            config_entry=config_entry,
         )
         self.api = MidniteClassicHub(host, port)
         self.interval = interval
