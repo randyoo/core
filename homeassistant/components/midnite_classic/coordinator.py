@@ -10,17 +10,10 @@ from typing import Any
 try:
     import pymodbus
 
-    if "3.7.0" <= pymodbus.__version__ <= "3.7.4":
-        from pymodbus.pdu.register_read_message import (  # pyright: ignore[reportMissingImports]
-            ReadHoldingRegistersResponse,  # type: ignore[no-redef]
-        )
-    else:
-        try:
-            from pymodbus.pdu.register_message import (
-                ReadHoldingRegistersResponse,  # type: ignore[no-redef]
-            )
-        except ImportError:
-            ReadHoldingRegistersResponse = None  # type: ignore[assignment]
+    try:
+        from pymodbus.pdu.register_message import ReadHoldingRegistersResponse
+    except ImportError:
+        ReadHoldingRegistersResponse = None  # type: ignore[misc, assignment]
 except ImportError:
     pymodbus = None  # type: ignore[assignment]
 
@@ -29,6 +22,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .button_definitions import BUTTON_DEFINITIONS
 from .const import DOMAIN
+
+try:
+    from .const import CONF_SCAN_INTERVAL
+except ImportError:
+    CONF_SCAN_INTERVAL = "scan_interval"
 from .hub import MidniteClassicHub
 from .number_definitions import NUMBER_DEFINITIONS
 from .select_definitions import SELECT_DEFINITIONS
@@ -49,8 +47,13 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
         host: str,
         port: int,
         interval: int = 15,
+        config_entry=None,
     ) -> None:
         """Initialize Update Coordinator."""
+
+        # Get scan interval from options if available, otherwise use default
+        if config_entry and hasattr(config_entry, "options"):
+            interval = config_entry.options.get(CONF_SCAN_INTERVAL, interval)
 
         super().__init__(
             hass,
@@ -60,7 +63,7 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
         )
         self.api = MidniteClassicHub(host, port)
         self.interval = interval
-        self.device_info = {}
+        self.device_info: dict[str, Any] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch all device and sensor data from api."""
@@ -73,17 +76,17 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
         if not self.api.is_still_connected():
             _LOGGER.debug("Connection not active, attempting to reconnect")
 
-            async def _connect_and_sleep() -> None:
-                """Connect and add delay."""
-                await self.hass.async_add_executor_job(self.api.connect)
-                # Add delay after connect to allow device to respond
-                await asyncio.sleep(0.5)
+        async def _connect_and_sleep() -> None:
+            """Connect and add delay."""
+            await self.hass.async_add_executor_job(self.api.connect)
+            # Add delay after connect to allow device to respond
+            await asyncio.sleep(0.5)
 
-            try:
-                await _connect_and_sleep()
-            except Exception as e:
-                _LOGGER.error("Failed to connect: %s", e)
-                raise UpdateFailed("Cannot connect to device: %s") from e
+        try:
+            await _connect_and_sleep()
+        except OSError as e:
+            _LOGGER.error("Failed to connect: %s", e)
+            raise UpdateFailed("Cannot connect to device: %s") from e
 
         def _check_connection_test() -> None:
             """Check connection by reading UNIT_ID register."""
@@ -113,7 +116,7 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
         try:
             await _test_connection()
-        except Exception:
+        except OSError:
             _LOGGER.exception("Connection test failed with exception")
             # Try to reconnect once more with detailed logging
 
@@ -140,7 +143,7 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
             try:
                 await _reconnect_and_test()
-            except Exception as exc2:
+            except OSError as exc2:
                 _LOGGER.exception("Reconnect failed")
                 raise UpdateFailed("Cannot communicate with device") from exc2
 
@@ -191,23 +194,25 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
         for reg in sorted_regs:
 
-            async def _read_single_register() -> None:
+            async def _read_single_register(current_reg: int) -> None:
                 """Read a single register."""
                 result = await self.hass.async_add_executor_job(
-                    self.api.read_holding_registers, reg, 1
+                    self.api.read_holding_registers, current_reg, 1
                 )
                 if result is not None and not result.isError():
                     value = result.registers[0]
                     nonlocal result_data
-                    result_data[reg] = value
-                    _LOGGER.debug("Successfully read register %s: %s", reg, value)
+                    result_data[current_reg] = value
+                    _LOGGER.debug(
+                        "Successfully read register %s: %s", current_reg, value
+                    )
                 else:
-                    _LOGGER.warning("Failed to read register %s", reg)
+                    _LOGGER.warning("Failed to read register %s", current_reg)
 
             try:
                 _LOGGER.debug("Reading register %s", reg)
-                await _read_single_register()
-            except Exception:
+                await _read_single_register(reg)
+            except OSError:
                 _LOGGER.warning("Exception reading register %s", reg, exc_info=True)
                 failed_registers.append(reg)
 
