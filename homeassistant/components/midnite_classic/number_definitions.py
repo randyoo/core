@@ -127,20 +127,20 @@ NUMBER_DEFINITIONS = [
         device_class="temperature",
         unit="%/°C",
     ),
-    # Network settings
-    NumberDefinition(
-        key="modbus_timeout",
-        name="Modbus Timeout",
-        register_group="network",
-        register_address=20496,
-        formula="value / 10.0",
-        write_formula="int(value * 10)",
-        min_value=0.5,
-        max_value=30.0,
-        step=0.5,
-        device_class="duration",
-        unit="seconds",
-    ),
+    # Network settings - DISABLED: Using unsupported 5-digit register addresses
+    # NumberDefinition(
+    #     key="modbus_timeout",
+    #     name="Modbus Timeout",
+    #     register_group="network",
+    #     register_address=20496,
+    #     formula="value / 10.0",
+    #     write_formula="int(value * 10)",
+    #     min_value=0.5,
+    #     max_value=30.0,
+    #     step=0.5,
+    #     device_class="duration",
+    #     unit="seconds",
+    # ),
 ]
 
 # Total: 9 number entities defined

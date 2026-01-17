@@ -7,8 +7,7 @@ from datetime import timedelta
 import logging
 from typing import Any
 
-import pymodbus
-
+# import pymodbus
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -60,44 +59,33 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch all device and sensor data from api."""
-        if pymodbus is None:
-            raise UpdateFailed("pymodbus not available")
 
         unavailable_entities: dict[str, list[int]] = {}
 
         # Ensure connection is active
         if not self.api.is_still_connected():
             _LOGGER.debug("Connection not active, attempting to reconnect")
-
-        async def _connect_and_sleep() -> None:
-            """Connect and add delay."""
-            await self.hass.async_add_executor_job(self.api.connect)
-            # Add delay after connect to allow device to respond
-            await asyncio.sleep(0.5)
-
-        try:
-            await _connect_and_sleep()
-        except OSError as e:
-            _LOGGER.error("Failed to connect: %s", e)
-            raise UpdateFailed("Cannot connect to device: %s") from e
-
-        def _check_connection_test() -> None:
-            """Check connection by reading UNIT_ID register."""
+            try:
+                await self.hass.async_add_executor_job(self.api.connect)
+                # Add delay after connect to allow device to respond
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                _LOGGER.error("Failed to connect: %s", e)
+                raise UpdateFailed("Cannot connect to device: %s") from e
 
         # Test connection with a simple read before proceeding
         # Try multiple registers to handle temporary communication issues
-
-        async def _test_connection() -> None:
-            """Test connection by reading UNIT_ID register."""
-            _LOGGER.debug("Testing connection by reading UNIT_ID register")
+        try:
+            _LOGGER.debug("Testing connection by reading UNIT_ID register (4101)")
             test_result = await self.hass.async_add_executor_job(
-                self.api.read_holding_registers, 4100, 1
+                self.api.read_holding_registers, 4101, 1
             )
             if test_result is None or test_result.isError():
                 _LOGGER.warning(
                     "Connection test failed on UNIT_ID. Trying alternative register"
                 )
-                # Try a different register that might be more stable
+                # Try a different register that might be more stable (4-digit address)
+                _LOGGER.debug("Trying alternative register 4102")
                 test_result = await self.hass.async_add_executor_job(
                     self.api.read_holding_registers, 4102, 1
                 )
@@ -106,23 +94,20 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
             unit_id = test_result.registers[0] if test_result.registers else None
             _LOGGER.debug("Connection test successful. UNIT_ID: %s", unit_id)
-
-        try:
-            await _test_connection()
         except OSError:
             _LOGGER.exception("Connection test failed with exception")
             # Try to reconnect once more with detailed logging
-
-            async def _reconnect_and_test() -> None:
-                """Reconnect and test connection."""
+            try:
                 await self.hass.async_add_executor_job(self.api.disconnect)
                 await asyncio.sleep(0.3)  # Brief pause before reconnect
                 await self.hass.async_add_executor_job(self.api.connect)
                 await asyncio.sleep(0.5)  # Allow device to respond after reconnect
 
-                _LOGGER.debug("Testing connection again after reconnect")
+                _LOGGER.debug(
+                    "Testing connection again after reconnect (register 4101)"
+                )
                 test_result = await self.hass.async_add_executor_job(
-                    self.api.read_holding_registers, 4100, 1
+                    self.api.read_holding_registers, 4101, 1
                 )
                 if test_result is None or test_result.isError():
                     _LOGGER.error(
@@ -133,12 +118,9 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
                 unit_id = test_result.registers[0] if test_result.registers else None
                 _LOGGER.debug("Reconnect successful. UNIT_ID: %s", unit_id)
-
-            try:
-                await _reconnect_and_test()
             except OSError as exc2:
                 _LOGGER.exception("Reconnect failed")
-                raise UpdateFailed("Cannot communicate with device") from exc2
+                raise UpdateFailed("Cannot communicate with device: %s") from exc2
 
         all_definitions = (
             SENSOR_DEFINITIONS
@@ -237,3 +219,13 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
                 return (high_value << 16) | low_value
 
         return None
+
+    async def shutdown(self) -> None:
+        """Shutdown the coordinator and disconnect from device."""
+        _LOGGER.debug("Shutting down Midnite Classic coordinator")
+        if hasattr(self, "api") and self.api is not None:
+            try:
+                await self.hass.async_add_executor_job(self.api.disconnect)
+                _LOGGER.debug("Successfully disconnected from device")
+            except OSError as e:
+                _LOGGER.warning("Error during disconnect: %s", e)
