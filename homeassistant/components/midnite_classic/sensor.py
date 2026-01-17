@@ -182,7 +182,8 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
                 fw_register = device_info_data.get(4103)
                 if fw_year is not None and fw_register is not None:
                     fw_month = (fw_register >> 8) & 0xFF  # Extract high byte (MSB)
-                    sw_version = f"{fw_year}-{fw_month:02d}"
+                    fw_day = fw_register & 0xFF  # Extract low byte (LSB)
+                    sw_version = f"{fw_year}-{fw_month:02d}-{fw_day:02d}"
 
                 # Get PCB revision from UNIT_ID register bits 8-15
                 pcb_rev = (unit_id_value >> 8) & 0xFF if unit_id_value else None
