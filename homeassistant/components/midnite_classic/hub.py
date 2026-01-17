@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from pymodbus.client import ModbusTcpClient
+from pymodbus.exceptions import ModbusException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +21,12 @@ class MidniteClassicHub:
         self.host = host
         self.port = port
         # Use default RTU framer (not ASCII) - Midnite devices use standard Modbus TCP
-        self._client = ModbusTcpClient(host=self.host, port=self.port)
+        self._client = ModbusTcpClient(
+            host=self.host,
+            port=self.port,
+            timeout=3,  # Set timeout to prevent hanging
+            retries=2,  # Reduce retries at client level since we handle retries in read_holding_registers
+        )
         self._lock = threading.Lock()
 
     def is_still_connected(self) -> bool:
@@ -31,6 +37,11 @@ class MidniteClassicHub:
     def connect(self) -> bool | None:
         """Connect to the Modbus TCP server."""
         with self._lock:
+            # Ensure any existing connection is closed first
+            if self._client.is_socket_open():
+                _LOGGER.debug("Closing existing connection before reconnect")
+                self._client.close()
+
             _LOGGER.info("Connecting to %s:%s", self.host, self.port)
             result = self._client.connect()
             _LOGGER.info("Connection result: %s", result)
@@ -63,7 +74,7 @@ class MidniteClassicHub:
         _LOGGER.debug("Reading register %s (count=%s)", address, count)
         # Midnite devices use unit_id 1 by default
 
-        max_retries = 5  # Increased from 3 to 5 for better reliability
+        max_retries = 5
         with self._lock:
             for attempt in range(max_retries):
                 try:
@@ -73,9 +84,15 @@ class MidniteClassicHub:
                             "Connection closed, reconnecting before read attempt %s",
                             attempt + 1,
                         )
-                        self.connect()
+                        success = self.connect()
+                        if not success:
+                            _LOGGER.warning(
+                                "Reconnect failed on attempt %s", attempt + 1
+                            )
+                            continue
+
                         # Add a small delay after connect to allow device to stabilize
-                        time.sleep(0.2)
+                        time.sleep(0.3)
 
                     result = self._client.read_holding_registers(
                         address=address - 1,  # Modbus addresses are 0-indexed
@@ -89,50 +106,59 @@ class MidniteClassicHub:
                             result.registers,
                         )
                         return result
+
+                    # If we get here, the result has an error
                     _LOGGER.warning(
                         "Attempt %s failed for address %s: %s",
                         attempt + 1,
                         address,
                         result,
                     )
+
                 except OSError as e:
-                    # Special handling for "Unable to decode request" errors
                     error_msg = str(e)
+                    _LOGGER.debug(
+                        "Attempt %s exception for address %s: %s",
+                        attempt + 1,
+                        address,
+                        e,
+                    )
+
+                    # Special handling for connection-related errors
                     if (
+                        "Connection unexpectedly closed" in error_msg
+                        or "timed out" in error_msg
+                    ):
+                        _LOGGER.debug("Connection was lost during read, will reconnect")
+                        self.disconnect()
+                    elif (
                         "Unable to decode request" in error_msg
                         or "byte_count" in error_msg
                     ):
                         _LOGGER.debug(
-                            "Attempt %s exception for address %s: %s",
-                            attempt + 1,
-                            address,
-                            e,
-                        )
-                        _LOGGER.debug(
-                            "This may indicate a Modbus protocol issue with this register range"
+                            "Modbus protocol issue detected with this register range"
                         )
                         # Try to reset connection on protocol errors
                         if attempt < max_retries - 1:
-                            _LOGGER.debug(
-                                "Closing and reopening connection due to protocol error"
-                            )
                             self.disconnect()
-                    else:
-                        _LOGGER.debug(
-                            "Attempt %s exception for address %s: %s",
-                            attempt + 1,
-                            address,
-                            e,
-                        )
 
-                    if attempt < max_retries - 1:
-                        backoff_time = 0.2 * (
-                            attempt + 1
-                        )  # Increased exponential backoff
-                        _LOGGER.debug(
-                            "Waiting %ss before retry %s", backoff_time, attempt + 2
-                        )
-                        time.sleep(backoff_time)
+                except ModbusException as e:
+                    _LOGGER.warning(
+                        "Unexpected error reading address %s (attempt %s): %s",
+                        address,
+                        attempt + 1,
+                        e,
+                        exc_info=True,
+                    )
+                    break
+
+                # Retry logic with backoff
+                if attempt < max_retries - 1:
+                    backoff_time = 0.2 * (attempt + 1)
+                    _LOGGER.debug(
+                        "Waiting %ss before retry %s", backoff_time, attempt + 2
+                    )
+                    time.sleep(backoff_time)
 
             _LOGGER.warning(
                 "All %s attempts failed for address %s, count=%s",

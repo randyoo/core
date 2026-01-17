@@ -62,65 +62,108 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
 
         unavailable_entities: dict[str, list[int]] = {}
 
-        # Ensure connection is active
+        # Ensure connection is active - be more aggressive about reconnecting
         if not self.api.is_still_connected():
             _LOGGER.debug("Connection not active, attempting to reconnect")
             try:
-                await self.hass.async_add_executor_job(self.api.connect)
+                await self.hass.async_add_executor_job(self.api.disconnect)
+                await asyncio.sleep(0.2)  # Brief pause before reconnect
+                success = await self.hass.async_add_executor_job(self.api.connect)
+                if not success:
+                    self._raise_connection_failed()
+
                 # Add delay after connect to allow device to respond
                 await asyncio.sleep(0.5)
-            except Exception as e:
+            except (TimeoutError, ConnectionError) as e:
                 _LOGGER.error("Failed to connect: %s", e)
-                raise UpdateFailed("Cannot connect to device: %s") from e
+                self._raise_connection_failed_with_error(e)
+            except OSError as e:
+                _LOGGER.error("Failed to connect: %s", e)
+                self._raise_connection_failed_with_error(e)
 
         # Test connection with a simple read before proceeding
         # Try multiple registers to handle temporary communication issues
+        test_result = None
         try:
             _LOGGER.debug("Testing connection by reading UNIT_ID register (4101)")
             test_result = await self.hass.async_add_executor_job(
                 self.api.read_holding_registers, 4101, 1
             )
-            if test_result is None or test_result.isError():
+            if test_result is not None and not test_result.isError():
+                unit_id = test_result.registers[0] if test_result.registers else None
+                _LOGGER.debug("Connection test successful. UNIT_ID: %s", unit_id)
+            else:
                 _LOGGER.warning(
-                    "Connection test failed on UNIT_ID. Trying alternative register"
+                    "Connection test failed on UNIT_ID (result: %s). Trying alternative register",
+                    test_result,
                 )
-                # Try a different register that might be more stable (4-digit address)
+                # Try a different register that might be more stable
                 _LOGGER.debug("Trying alternative register 4102")
                 test_result = await self.hass.async_add_executor_job(
                     self.api.read_holding_registers, 4102, 1
                 )
                 if test_result is None or test_result.isError():
-                    raise UpdateFailed("Device not responding to connection tests")
+                    # Try one more time with a different approach - disconnect and reconnect
+                    _LOGGER.warning(
+                        "Connection tests failing, attempting full reconnect cycle"
+                    )
+                    try:
+                        await self.hass.async_add_executor_job(self.api.disconnect)
+                        await asyncio.sleep(0.3)  # Brief pause before reconnect
+                        success = await self.hass.async_add_executor_job(
+                            self.api.connect
+                        )
+                        if not success:
+                            self._raise_connection_failed()
 
-            unit_id = test_result.registers[0] if test_result.registers else None
-            _LOGGER.debug("Connection test successful. UNIT_ID: %s", unit_id)
+                        await asyncio.sleep(
+                            0.5
+                        )  # Allow device to respond after reconnect
+
+                        _LOGGER.debug(
+                            "Testing connection again after full reconnect (register 4101)"
+                        )
+                        test_result = await self.hass.async_add_executor_job(
+                            self.api.read_holding_registers, 4101, 1
+                        )
+                        if test_result is None or test_result.isError():
+                            _LOGGER.error(
+                                "Connection test still failing after reconnect. Result: %s",
+                                test_result,
+                            )
+                            self._raise_device_not_responding()
+                    except (OSError, TimeoutError, ConnectionError) as exc2:
+                        _LOGGER.exception("Reconnect and retest failed")
+                        self._raise_communication_failed(exc2)
+
         except OSError:
             _LOGGER.exception("Connection test failed with exception")
-            # Try to reconnect once more with detailed logging
+            # Try one more time with a clean connection
             try:
                 await self.hass.async_add_executor_job(self.api.disconnect)
                 await asyncio.sleep(0.3)  # Brief pause before reconnect
-                await self.hass.async_add_executor_job(self.api.connect)
+                success = await self.hass.async_add_executor_job(self.api.connect)
+                if not success:
+                    self._raise_connection_failed()
+
                 await asyncio.sleep(0.5)  # Allow device to respond after reconnect
 
                 _LOGGER.debug(
-                    "Testing connection again after reconnect (register 4101)"
+                    "Testing connection again after exception recovery (register 4101)"
                 )
                 test_result = await self.hass.async_add_executor_job(
                     self.api.read_holding_registers, 4101, 1
                 )
                 if test_result is None or test_result.isError():
                     _LOGGER.error(
-                        "Connection test still failing after reconnect. Result: %s",
+                        "Connection test still failing after exception recovery. Result: %s",
                         test_result,
                     )
-                    raise UpdateFailed("Device not responding after reconnect attempt")
+                    self._raise_device_not_responding_recovery()
 
-                unit_id = test_result.registers[0] if test_result.registers else None
-                _LOGGER.debug("Reconnect successful. UNIT_ID: %s", unit_id)
-            except OSError as exc2:
-                _LOGGER.exception("Reconnect failed")
-                raise UpdateFailed("Cannot communicate with device: %s") from exc2
+            except (OSError, TimeoutError, ConnectionError) as exc2:
+                _LOGGER.exception("Final reconnect failed")
+                self._raise_communication_failed(exc2)
 
         all_definitions = (
             SENSOR_DEFINITIONS
@@ -219,6 +262,26 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
                 return (high_value << 16) | low_value
 
         return None
+
+    def _raise_connection_failed(self) -> None:
+        """Raise UpdateFailed for connection failure."""
+        raise UpdateFailed("Cannot connect to device")
+
+    def _raise_connection_failed_with_error(self, error: Exception) -> None:
+        """Raise UpdateFailed for connection failure with error details."""
+        raise UpdateFailed("Cannot connect to device: %s") from error
+
+    def _raise_device_not_responding(self) -> None:
+        """Raise UpdateFailed when device is not responding to connection tests."""
+        raise UpdateFailed("Device not responding to connection tests")
+
+    def _raise_device_not_responding_recovery(self) -> None:
+        """Raise UpdateFailed when device is not responding after recovery attempt."""
+        raise UpdateFailed("Device not responding after recovery attempt")
+
+    def _raise_communication_failed(self, error: Exception) -> None:
+        """Raise UpdateFailed for communication failure with error details."""
+        raise UpdateFailed("Cannot communicate with device: %s") from error
 
     async def shutdown(self) -> None:
         """Shutdown the coordinator and disconnect from device."""
