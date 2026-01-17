@@ -61,7 +61,8 @@ async def async_unload_entry(
     """Unload a config entry."""
     if unload_ok := await hass.config_entries.async_unload_platforms(entry, _PLATFORMS):
         coordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        await coordinator.shutdown()
+        if coordinator is not None:
+            await coordinator.shutdown()
 
     return unload_ok
 
