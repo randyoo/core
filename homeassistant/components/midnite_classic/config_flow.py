@@ -209,7 +209,9 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_HOST: user_input[CONF_HOST],
                     CONF_PORT: user_input.get(CONF_PORT, DEFAULT_PORT),
                 }
-                entry_options = {}
+                entry_options = {
+                    "enable_writes": False,  # Default to write protection enabled
+                }
                 if CONF_SCAN_INTERVAL in user_input:
                     entry_options[CONF_SCAN_INTERVAL] = user_input[CONF_SCAN_INTERVAL]
 

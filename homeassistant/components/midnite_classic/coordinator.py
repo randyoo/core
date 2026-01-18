@@ -53,7 +53,11 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=interval),
             config_entry=config_entry,
         )
-        self.api = MidniteClassicHub(host, port)
+        # Get writes_enabled from config entry options
+        writes_enabled = False
+        if config_entry and hasattr(config_entry, "options"):
+            writes_enabled = config_entry.options.get("enable_writes", False)
+        self.api = MidniteClassicHub(host, port, writes_enabled)
         self.interval = interval
         self.device_info: dict[str, Any] = {}
 

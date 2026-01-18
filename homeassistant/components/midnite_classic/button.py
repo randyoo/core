@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.button import ButtonEntity
@@ -14,6 +15,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .button_definitions import BUTTON_DEFINITIONS
 from .const import DOMAIN
 from .coordinator import MidniteClassicCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -63,6 +66,13 @@ def create_button_class(definition: Any):
 
         async def async_press(self) -> None:
             """Handle the button press."""
+            # Check if writes are enabled before proceeding
+            if not self.coordinator.api.writes_enabled:
+                _LOGGER.warning(
+                    "Button press for %s blocked by write protection", self._attr_name
+                )
+                return
+
             # Implement button press logic here
 
     return DynamicButton

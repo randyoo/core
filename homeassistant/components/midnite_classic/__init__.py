@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+import voluptuous as vol
+
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -17,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 _PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.BUTTON,
+    Platform.NUMBER,
 ]
 
 type MidniteClassicConfigEntry = ConfigEntry[MidniteClassicCoordinator]
@@ -53,6 +57,51 @@ async def async_setup_entry(
     entry.add_update_listener(update_listener)
 
     return True
+
+
+async def async_get_options_flow(
+    config_entry: MidniteClassicConfigEntry,
+) -> MidniteClassicOptionsFlow:
+    """Create the options flow."""
+    return MidniteClassicOptionsFlow(config_entry)
+
+
+class MidniteClassicOptionsFlow(ConfigFlow):
+    """Handle options flow for Midnite Classic."""
+
+    def __init__(self, config_entry: MidniteClassicConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            # Update the config entry with new options
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, options={**self.config_entry.options, **user_input}
+            )
+            # Reload the integration to apply changes
+            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        # Get current options
+        current_options = self.config_entry.options
+
+        # Create form with current values
+        data_schema = vol.Schema(
+            {
+                vol.Optional(
+                    "enable_writes", default=current_options.get("enable_writes", False)
+                ): bool,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=data_schema,
+        )
 
 
 async def async_unload_entry(

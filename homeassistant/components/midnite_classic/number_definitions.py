@@ -5,12 +5,12 @@ from __future__ import annotations
 from .entity_definitions import NumberDefinition
 
 NUMBER_DEFINITIONS = [
-    # Battery voltage settings
+    # Battery voltage settings - using correct register addresses from midnite-registers.json.txt
     NumberDefinition(
         key="absorb_voltage",
         name="Absorb Voltage",
         register_group="settings",
-        register_address=4150,
+        register_address=4149,
         formula="value / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
@@ -24,7 +24,7 @@ NUMBER_DEFINITIONS = [
         key="float_voltage",
         name="Float Voltage",
         register_group="settings",
-        register_address=4151,
+        register_address=4150,
         formula="value / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
@@ -38,7 +38,7 @@ NUMBER_DEFINITIONS = [
         key="equalize_voltage",
         name="Equalize Voltage",
         register_group="settings",
-        register_address=4152,
+        register_address=4151,
         formula="value / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
@@ -75,7 +75,7 @@ NUMBER_DEFINITIONS = [
         device_class="current",
         unit="A",
     ),
-    # Time settings
+    # Time settings - using correct register addresses from midnite-registers.json.txt
     NumberDefinition(
         key="absorb_time",
         name="Absorb Time",

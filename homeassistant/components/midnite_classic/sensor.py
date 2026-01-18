@@ -242,6 +242,13 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
 
         return value
 
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        # For write-protected entities, we still want to show them as available
+        # but with a warning when write operations are attempted
+        return super().available
+
     def _apply_formula(self, value: Any, group_data: dict[int, Any]) -> Any | None:
         """Apply formula to the raw value."""
         try:

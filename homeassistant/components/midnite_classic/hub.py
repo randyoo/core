@@ -16,10 +16,11 @@ _LOGGER = logging.getLogger(__name__)
 class MidniteClassicHub:
     """Midnite Classic Hub for managing Modbus TCP connections."""
 
-    def __init__(self, host: str, port: int) -> None:
+    def __init__(self, host: str, port: int, writes_enabled: bool = False) -> None:
         """Initialize the hub."""
         self.host = host
         self.port = port
+        self._writes_enabled = writes_enabled
         # Use default RTU framer (not ASCII) - Midnite devices use standard Modbus TCP
         self._client = ModbusTcpClient(
             host=self.host,
@@ -59,8 +60,19 @@ class MidniteClassicHub:
                 return self._client.close()
             return None
 
+    @property
+    def writes_enabled(self) -> bool:
+        """Return if writes are enabled."""
+        return self._writes_enabled
+
     def write_register(self, address: int, value: int) -> Any | None:
         """Write a register."""
+        if not self._writes_enabled:
+            _LOGGER.warning(
+                "Write attempt to register %s blocked by write protection", address
+            )
+            return None
+
         # Midnite devices use unit_id 1 by default
         with self._lock:
             return self._client.write_register(

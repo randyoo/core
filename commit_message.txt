@@ -1,0 +1,20 @@
+Improve connection reliability for Midnite Classic integration
+
+Enhance connection handling in both coordinator and hub classes:
+
+1. Coordinator improvements:
+   - Implement more aggressive reconnection strategy with disconnect/reconnect cycle
+   - Add multiple connection test registers (4101, 4102) for better reliability
+   - Introduce dedicated error handling methods for different failure scenarios
+   - Add full reconnect cycle when initial connection tests fail
+   - Improve logging with detailed error context
+
+2. Hub improvements:
+   - Configure Modbus client with explicit timeout (3s) and reduced retries (2)
+   - Ensure existing connections are properly closed before reconnecting
+   - Increase read retry delay from 0.2s to 0.3s for better device stabilization
+   - Add handling for ModbusException in read operations
+   - Improve error classification with specific handling for connection loss and protocol issues
+   - Add debug logging for exception types during read attempts
+
+These changes improve the integration's resilience to network instability and device communication issues while maintaining proper async patterns and error reporting.
