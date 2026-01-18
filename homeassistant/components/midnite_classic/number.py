@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.number import NumberDeviceClass, NumberEntity
+from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -37,7 +37,7 @@ async def async_setup_entry(
     async_add_entities(numbers)
 
 
-def create_number_class(definition: Any):
+def create_number_class(definition: Any):  # noqa: C901
     """Dynamically create a number class for the given definition."""
 
     class DynamicNumber(CoordinatorEntity[MidniteClassicCoordinator], NumberEntity):
@@ -55,29 +55,51 @@ def create_number_class(definition: Any):
             self._definition = definition
 
             # Set basic attributes from definition
-            self._attr_name = definition.name
-            self._attr_unique_id = f"{entry.entry_id}_{definition.key}"
+            self._set_basic_attributes()
+            self._set_device_class()
+            self._set_unit_and_mode()
 
-            # Set min/max/step values - using proper types
-            if hasattr(definition, "min_value"):
-                self._attr_min_value = definition.min_value
-            if hasattr(definition, "max_value"):
-                self._attr_max_value = definition.max_value
-            if hasattr(definition, "step") and definition.step is not None:
-                self._attr_step = definition.step
+        def _set_basic_attributes(self) -> None:
+            """Set basic number entity attributes."""
+            self._attr_name = self._definition.name
+            self._attr_unique_id = f"{self._entry.entry_id}_{self._definition.key}"
 
-            # Set device class if defined
-            if hasattr(definition, "device_class") and definition.device_class:
+            if hasattr(self._definition, "min_value"):
+                self._attr_min_value = self._definition.min_value
+            if hasattr(self._definition, "max_value"):
+                self._attr_max_value = self._definition.max_value
+            if hasattr(self._definition, "step") and self._definition.step is not None:
+                self._attr_step = self._definition.step
+
+        def _set_device_class(self) -> None:
+            """Set device class based on definition."""
+            if (
+                hasattr(self._definition, "device_class")
+                and self._definition.device_class
+            ):
                 device_class_map = {
                     "voltage": NumberDeviceClass.VOLTAGE,
                     "current": NumberDeviceClass.CURRENT,
                     "duration": NumberDeviceClass.DURATION,
                 }
-                self._attr_device_class = device_class_map.get(definition.device_class)
+                self._attr_device_class = device_class_map.get(
+                    self._definition.device_class
+                )
 
-            # Set unit of measurement if defined
-            if hasattr(definition, "unit"):
-                self._attr_native_unit_of_measurement = definition.unit
+        def _set_unit_and_mode(self) -> None:
+            """Set unit of measurement and mode."""
+            if hasattr(self._definition, "unit"):
+                self._attr_native_unit_of_measurement = self._definition.unit
+
+            # Set mode to box for better UX with decimal values
+            self._attr_mode = NumberMode.BOX
+
+            # Ensure precision is set for proper display
+            if (
+                not hasattr(self._definition, "precision")
+                or self._definition.precision is None
+            ):
+                self._attr_precision = 1
 
         @property
         def device_info(self):
