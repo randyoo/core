@@ -7,6 +7,23 @@
     "step": {
       "confirm": {
         "description": "[%key:common::config_flow::description::confirm_setup%]"
+      },
+      "user": {
+        "data": {
+          "host": "IP Address",
+          "port": "Port",
+          "scan_interval": "Scan interval (seconds)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "enable_writes": "Enable writes to device",
+          "scan_interval": "Scan interval (seconds)"
+        }
       }
     }
   }
