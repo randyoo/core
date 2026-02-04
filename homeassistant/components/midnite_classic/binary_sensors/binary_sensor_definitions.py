@@ -1,0 +1,197 @@
+"""Binary sensor definitions for midnite_classic integration.
+
+This module defines binary sensors that extract bits from the Info Flags register (4130-4131).
+
+The binary sensors are designed to read bits from the combined 32-bit info_flags_raw value
+without any additional modbus traffic - they simply reference bits from the already-fetched data.
+"""
+
+from __future__ import annotations
+
+from ..entity_definitions import EntityDefinition
+
+# Info Flag Bits from Table 4130-1 (registers 4130 and 4131)
+# Each binary sensor extracts a specific bit from the combined 32-bit value
+INFO_FLAG_SENSORS = [
+    # Register 4130 (Low word)
+    EntityDefinition(
+        key="info_flag_over_temperature",
+        name="Over Temperature",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="heat",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_eeprom_error",
+        name="EEPROM Error",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_serial_write_lock",
+        name="Serial Write Lock",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_equalize_in_progress",
+        name="Equalize In Progress",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="running",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_eq_mppt",
+        name="EQ MPPT",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_current_limit",
+        name="Current Limit Reached",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_hyper_voc",
+        name="HyperVoc",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_battery_temp_sensor_installed",
+        name="Battery Temp Sensor Installed",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="running",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_aux1_state_on",
+        name="Aux 1 State On",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="power",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_aux2_state_on",
+        name="Aux 2 State On",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        device_class="power",
+        entity_category="diagnostic",
+    ),
+    # Register 4131 (High word)
+    EntityDefinition(
+        key="info_flag_ground_fault",
+        name="Ground Fault",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_over_current_protection",
+        name="Over Current Protection (OCP)",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_arc_fault",
+        name="Arc Fault",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_negative_battery_current",
+        name="Negative Battery Current",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_extra_info_display",
+        name="Extra Info Available for Display",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_watchdog_reset",
+        name="Watchdog Reset",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_low_battery_voltage",
+        name="Low Battery Voltage",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_eq_done",
+        name="Equalize Done",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_temp_comp_shorted",
+        name="Temperature Compensated Shorted",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_input_shorted",
+        name="Input Shorted",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        device_class="problem",
+        entity_category="diagnostic",
+    ),
+]
+
+__all__ = ["INFO_FLAG_SENSORS"]
