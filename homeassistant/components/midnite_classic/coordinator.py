@@ -10,6 +10,7 @@ from typing import Any
 # import pymodbus
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.device_registry import (
     CONNECTION_NETWORK_MAC,
     DeviceInfo,
@@ -114,112 +115,56 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
         self.mac_address: str | None = None
 
     async def _async_update_data(self) -> dict[str, Any]:
-        """Fetch all device and sensor data from api."""
+        """Fetch all device and sensor data from api.
+
+        Simplified to fail faster when device is completely offline.
+        """
 
         unavailable_entities: dict[str, list[int]] = {}
 
-        # Ensure connection is active - be more aggressive about reconnecting
+        # Ensure connection is active
         if not self.api.is_still_connected():
-            _LOGGER.debug("Connection not active, attempting to reconnect")
+            _LOGGER.debug("Connection not active, attempting to connect")
             try:
                 await self.hass.async_add_executor_job(self.api.disconnect)
                 await asyncio.sleep(0.2)  # Brief pause before reconnect
                 success = await self.hass.async_add_executor_job(self.api.connect)
                 if not success:
-                    self._raise_connection_failed()
-
-                # Add delay after connect to allow device to respond
-                await asyncio.sleep(0.5)
+                    _LOGGER.error("Failed to connect to device")
+                    self._raise_entry_not_ready("Could not connect to device")
+                await asyncio.sleep(0.3)  # Allow device to stabilize
             except (TimeoutError, ConnectionError) as e:
                 _LOGGER.error("Failed to connect: %s", e)
-                self._raise_connection_failed_with_error(e)
+                self._raise_entry_not_ready(f"Connection failed: {e}")
             except OSError as e:
                 _LOGGER.error("Failed to connect: %s", e)
-                self._raise_connection_failed_with_error(e)
+                self._raise_entry_not_ready(f"Connection failed: {e}")
 
-        # Test connection with a simple read before proceeding
-        # Try multiple registers to handle temporary communication issues
+        # Test connection with a simple read
         test_result = None
         try:
             _LOGGER.debug("Testing connection by reading UNIT_ID register (4101)")
             test_result = await self.hass.async_add_executor_job(
                 self.api.read_holding_registers, 4101, 1
             )
-            if test_result is not None and not test_result.isError():
-                unit_id = test_result.registers[0] if test_result.registers else None
-                _LOGGER.debug("Connection test successful. UNIT_ID: %s", unit_id)
-            else:
-                _LOGGER.warning(
-                    "Connection test failed on UNIT_ID (result: %s). Trying alternative register",
-                    test_result,
-                )
-                # Try a different register that might be more stable
-                _LOGGER.debug("Trying alternative register 4102")
-                test_result = await self.hass.async_add_executor_job(
-                    self.api.read_holding_registers, 4102, 1
-                )
-                if test_result is None or test_result.isError():
-                    # Try one more time with a different approach - disconnect and reconnect
-                    _LOGGER.warning(
-                        "Connection tests failing, attempting full reconnect cycle"
-                    )
-                    try:
-                        await self.hass.async_add_executor_job(self.api.disconnect)
-                        await asyncio.sleep(0.3)  # Brief pause before reconnect
-                        success = await self.hass.async_add_executor_job(
-                            self.api.connect
-                        )
-                        if not success:
-                            self._raise_connection_failed()
+        except (OSError, TimeoutError) as e:
+            _LOGGER.error("Read failed: %s", e)
+            self._raise_entry_not_ready(f"Failed to read register 4101: {e}")
 
-                        await asyncio.sleep(
-                            0.5
-                        )  # Allow device to respond after reconnect
+        # Check if we got valid data
+        if test_result is None or test_result.isError():
+            # Read failed - this means device is not responding
+            # Raise ConfigEntryNotReady to let Home Assistant retry later
+            _LOGGER.warning("Device not responding to read requests")
+            self._raise_entry_not_ready("Device not responding")
 
-                        _LOGGER.debug(
-                            "Testing connection again after full reconnect (register 4101)"
-                        )
-                        test_result = await self.hass.async_add_executor_job(
-                            self.api.read_holding_registers, 4101, 1
-                        )
-                        if test_result is None or test_result.isError():
-                            _LOGGER.error(
-                                "Connection test still failing after reconnect. Result: %s",
-                                test_result,
-                            )
-                            self._raise_device_not_responding()
-                    except (OSError, TimeoutError, ConnectionError) as exc2:
-                        _LOGGER.exception("Reconnect and retest failed")
-                        self._raise_communication_failed(exc2)
-
-        except OSError:
-            _LOGGER.exception("Connection test failed with exception")
-            # Try one more time with a clean connection
-            try:
-                await self.hass.async_add_executor_job(self.api.disconnect)
-                await asyncio.sleep(0.3)  # Brief pause before reconnect
-                success = await self.hass.async_add_executor_job(self.api.connect)
-                if not success:
-                    self._raise_connection_failed()
-
-                await asyncio.sleep(0.5)  # Allow device to respond after reconnect
-
-                _LOGGER.debug(
-                    "Testing connection again after exception recovery (register 4101)"
-                )
-                test_result = await self.hass.async_add_executor_job(
-                    self.api.read_holding_registers, 4101, 1
-                )
-                if test_result is None or test_result.isError():
-                    _LOGGER.error(
-                        "Connection test still failing after exception recovery. Result: %s",
-                        test_result,
-                    )
-                    self._raise_device_not_responding_recovery()
-
-            except (OSError, TimeoutError, ConnectionError) as exc2:
-                _LOGGER.exception("Final reconnect failed")
-                self._raise_communication_failed(exc2)
+        # If we got here, the read succeeded
+        unit_id = (
+            test_result.registers[0]
+            if (test_result and test_result.registers)
+            else None
+        )
+        _LOGGER.debug("Connection test successful. UNIT_ID: %s", unit_id)
 
         all_definitions = (
             SENSOR_DEFINITIONS
@@ -345,6 +290,10 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
     def _raise_communication_failed(self, error: Exception) -> None:
         """Raise UpdateFailed for communication failure with error details."""
         raise UpdateFailed("Cannot communicate with device: %s") from error
+
+    def _raise_entry_not_ready(self, reason: str) -> None:
+        """Raise ConfigEntryNotReady for setup failures (faster than UpdateFailed)."""
+        raise ConfigEntryNotReady(reason) from None
 
     async def shutdown(self) -> None:
         """Shutdown the coordinator and disconnect from device."""

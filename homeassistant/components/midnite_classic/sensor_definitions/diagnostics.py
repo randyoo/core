@@ -55,10 +55,11 @@ DIAGNOSTIC_SENSORS = [
     ),
     SensorDefinition(
         key="match_point_shadow",
-        name="Match Point Shadow",
+        name="Match Point Shadow (wind)",
         register_group="status",
         register_address=4124,
         formula="value",
         entity_category="diagnostic",
+        enabled_by_default=False,
     ),
 ]

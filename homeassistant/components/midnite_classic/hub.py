@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from pymodbus.client import ModbusTcpClient
-from pymodbus.exceptions import ModbusException
+from pymodbus.exceptions import ConnectionException, ModbusException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,12 +22,13 @@ class MidniteClassicHub:
         self.port = port
         self._writes_enabled = writes_enabled
         # Use default RTU framer (not ASCII) - Midnite devices use standard Modbus TCP
-        # Set shorter timeout for faster failure detection (5 seconds instead of 3)
+        # Set shorter timeout for faster failure detection
+        # pymodbus default is 3 seconds, reduced to 2 for faster failure
         self._client = ModbusTcpClient(
             host=self.host,
             port=self.port,
-            timeout=5,  # Connection timeout
-            retries=1,  # Minimal retries at client level since we handle retries in read_holding_registers
+            timeout=2,  # Read timeout per operation (reduced from default 3)
+            retries=0,  # Disable retries at client level - we handle in read_holding_registers
         )
         self._lock = threading.Lock()
 
@@ -37,15 +38,33 @@ class MidniteClassicHub:
             return self._client.is_socket_open()
 
     def connect(self) -> bool | None:
-        """Connect to the Modbus TCP server."""
+        """Connect to the Modbus TCP server with timeout."""
         with self._lock:
             # Ensure any existing connection is closed first
             if self._client.is_socket_open():
                 _LOGGER.debug("Closing existing connection before reconnect")
                 self._client.close()
 
+            # Get socket from pymodbus client and set explicit timeout
             _LOGGER.info("Connecting to %s:%s", self.host, self.port)
-            result = self._client.connect()
+
+            # Try to get the socket and set timeout
+            try:
+                # pymodbus connect() returns True on success, False on failure
+                result = self._client.connect()
+
+                # Set a very short timeout for socket operations if possible
+                if self._client.socket:
+                    try:
+                        # Set socket-level timeout for read/write operations
+                        self._client.socket.settimeout(3)  # 3 second socket timeout
+                    except AttributeError:
+                        _LOGGER.debug("Could not set socket timeout")
+            except (AttributeError, TypeError):
+                # Handle cases where pymodbus client doesn't have expected attributes
+                _LOGGER.debug("Error during connect - pymodbus attribute issue")
+                return False
+
             _LOGGER.info("Connection result: %s", result)
             if result:
                 _LOGGER.info("Successfully connected to device")
@@ -83,11 +102,14 @@ class MidniteClassicHub:
             )
 
     def read_holding_registers(self, address: int, count: int = 1) -> Any | None:
-        """Read holding registers with enhanced retry logic and debug logging."""
+        """Read holding registers with enhanced retry logic and debug logging.
+
+        Uses a shorter timeout to fail faster when device is offline.
+        """
         _LOGGER.debug("Reading register %s (count=%s)", address, count)
         # Midnite devices use unit_id 1 by default
 
-        max_retries = 5
+        max_retries = 2
         with self._lock:
             for attempt in range(max_retries):
                 try:
@@ -155,14 +177,14 @@ class MidniteClassicHub:
                         if attempt < max_retries - 1:
                             self.disconnect()
 
-                except ModbusException as e:
+                except (ModbusException, ConnectionException) as e:
                     _LOGGER.warning(
                         "Unexpected error reading address %s (attempt %s): %s",
                         address,
                         attempt + 1,
                         e,
-                        exc_info=True,
                     )
+                    # Don't retry on connection exceptions - fail immediately
                     break
 
                 # Retry logic with backoff
