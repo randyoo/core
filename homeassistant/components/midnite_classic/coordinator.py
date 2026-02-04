@@ -8,11 +8,17 @@ import logging
 from typing import Any
 
 # import pymodbus
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceInfo,
+    format_mac,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .button_definitions import BUTTON_DEFINITIONS
-from .const import DOMAIN
+from .const import DEVICE_TYPES, DOMAIN
 
 try:
     from .const import CONF_SCAN_INTERVAL
@@ -26,11 +32,55 @@ from .text_definitions import TEXT_DEFINITIONS
 
 _LOGGER = logging.getLogger(__name__)
 
+type MidniteClassicConfigEntry = ConfigEntry[MidniteClassicCoordinator]
+
+
+def parse_mac_from_registers(registers: dict[int, int]) -> str | None:
+    """Parse MAC address from modbus registers 4106-4108.
+
+    Register 4106 contains the first 2 bytes (bytes 4-5 of MAC)
+    Register 4107 contains the middle 2 bytes (bytes 2-3 of MAC)
+    Register 4108 contains the last 2 bytes (bytes 0-1 of MAC)
+
+    The bytes are in big-endian order within each register.
+    """
+    if not registers:
+        return None
+
+    reg_4106 = registers.get(4106)
+    reg_4107 = registers.get(4107)
+    reg_4108 = registers.get(4108)
+
+    if reg_4106 is None or reg_4107 is None or reg_4108 is None:
+        return None
+
+    # Extract bytes from registers
+    # Register format: high byte first, low byte second
+    # Reg 4106: bytes 4-5 (most significant)
+    # Reg 4107: bytes 2-3
+    # Reg 4108: bytes 0-1 (least significant)
+
+    part2 = reg_4107
+    part3 = reg_4108
+
+    mac_bytes = [
+        (part3 >> 8) & 0xFF,
+        part3 & 0xFF,
+        (part2 >> 8) & 0xFF,
+        part2 & 0xFF,
+        (reg_4106 >> 8) & 0xFF,
+        reg_4106 & 0xFF,
+    ]
+
+    # Format as MAC address with colons
+    return ":".join(f"{byte:02X}" for byte in mac_bytes)
+
 
 class MidniteClassicCoordinator(DataUpdateCoordinator):
     """Gather data for the Midnite Classic device."""
 
     api: MidniteClassicHub
+    config_entry: MidniteClassicConfigEntry
 
     def __init__(
         self,
@@ -60,6 +110,8 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
         self.api = MidniteClassicHub(host, port, writes_enabled)
         self.interval = interval
         self.device_info: dict[str, Any] = {}
+        # MAC address read from modbus registers (4106-4108)
+        self.mac_address: str | None = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch all device and sensor data from api."""
@@ -199,6 +251,13 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
             else:
                 unavailable_entities[group_name] = list(registers)
 
+        # Extract MAC address from modbus registers (4106-4108) if available
+        if data:
+            device_info_data = data.get("device_info", {})
+            if mac := parse_mac_from_registers(device_info_data):
+                self.mac_address = mac
+                _LOGGER.debug("MAC address read from device: %s", mac)
+
         return {
             "data": data,
             "availability": unavailable_entities,
@@ -296,3 +355,58 @@ class MidniteClassicCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Successfully disconnected from device")
             except OSError as e:
                 _LOGGER.warning("Error during disconnect: %s", e)
+
+    def update_device_info(self) -> DeviceInfo:
+        """Update device info with MAC address if available."""
+        # Build identifiers
+        identifiers = {(DOMAIN, self.config_entry.entry_id)}
+
+        # Get model and firmware from device_info data
+        model = None
+        sw_version = None
+        hw_version = None
+
+        if self.data and "data" in self.data:
+            device_data = self.data.get("data", {})
+            if device_info_data := device_data.get("device_info"):
+                # Get the device type value from register 4101
+                unit_id_value = device_info_data.get(4101)
+                if unit_id_value is not None:
+                    device_type = unit_id_value & 0xFF  # Get LSB (unit type)
+                    model = DEVICE_TYPES.get(device_type, f"Unknown ({device_type})")
+
+                # Get firmware version from registers 4102-4103
+                fw_year = device_info_data.get(4102)
+                fw_register = device_info_data.get(4103)
+                if fw_year is not None and fw_register is not None:
+                    fw_month = (fw_register >> 8) & 0xFF  # Extract high byte (MSB)
+                    fw_day = fw_register & 0xFF  # Extract low byte (LSB)
+                    sw_version = f"{fw_year}-{fw_month:02d}-{fw_day:02d}"
+
+                # Get PCB revision from UNIT_ID register bits 8-15
+                pcb_rev = (unit_id_value >> 8) & 0xFF if unit_id_value else None
+                if pcb_rev is not None:
+                    hw_version = f"Rev {pcb_rev}"
+
+        # Build device info
+        device_info = DeviceInfo(
+            identifiers=identifiers,
+            name=self.config_entry.title,
+            manufacturer="Midnite Solar",
+        )
+
+        # Add MAC address from modbus registers if available
+        if self.mac_address:
+            device_info["connections"] = {
+                (CONNECTION_NETWORK_MAC, format_mac(self.mac_address))
+            }
+
+        # Set optional attributes
+        if model:
+            device_info["model"] = model
+        if sw_version:
+            device_info["sw_version"] = sw_version
+        if hw_version:
+            device_info["hw_version"] = hw_version
+
+        return device_info

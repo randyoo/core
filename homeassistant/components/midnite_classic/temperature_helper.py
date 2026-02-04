@@ -10,10 +10,10 @@ _LOGGER = logging.getLogger(__name__)
 TEMPERATURE_LIMITS: dict[str, tuple[float, float]] = {
     "temp_ambient": (-50.0, 125.0),
     "temp_pcb": (-40.0, 100.0),
-    "temp_battery": (0.0, 60.0),
+    # Note: battery_temperature now uses formula instead of helper
 }
 
-TEMPERATURE_SENSOR_KEYS = list(TEMPERATURE_LIMITS.keys())
+TEMPERATURE_SENSOR_KEYS = ["temp_ambient", "temp_pcb"]
 
 
 class TemperatureContext(TypedDict):

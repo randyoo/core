@@ -56,13 +56,10 @@ def create_button_class(definition: Any):
                 self._attr_icon = definition.icon
 
         @property
-        def device_info(self):
+        def device_info(self) -> DeviceInfo | None:
             """Return device info."""
-            return DeviceInfo(
-                identifiers={(DOMAIN, self._entry.entry_id)},
-                name=self._entry.title,
-                manufacturer="Midnite Solar",
-            )
+            # Get device info from coordinator (includes MAC address from modbus)
+            return self.coordinator.update_device_info()
 
         async def async_press(self) -> None:
             """Handle the button press."""

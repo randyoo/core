@@ -22,11 +22,12 @@ class MidniteClassicHub:
         self.port = port
         self._writes_enabled = writes_enabled
         # Use default RTU framer (not ASCII) - Midnite devices use standard Modbus TCP
+        # Set shorter timeout for faster failure detection (5 seconds instead of 3)
         self._client = ModbusTcpClient(
             host=self.host,
             port=self.port,
-            timeout=3,  # Set timeout to prevent hanging
-            retries=2,  # Reduce retries at client level since we handle retries in read_holding_registers
+            timeout=5,  # Connection timeout
+            retries=1,  # Minimal retries at client level since we handle retries in read_holding_registers
         )
         self._lock = threading.Lock()
 

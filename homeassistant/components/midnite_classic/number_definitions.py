@@ -48,7 +48,7 @@ NUMBER_DEFINITIONS = [
         unit="V",
         precision=1,
     ),
-    # Current settings
+    # Current settings - fix - appears to be hallucinated!
     NumberDefinition(
         key="absorb_current_limit",
         name="Absorb Current Limit",
@@ -80,11 +80,11 @@ NUMBER_DEFINITIONS = [
         key="absorb_time",
         name="Absorb Time",
         register_group="time_settings",
-        register_address=4139,
+        register_address=4154,
         formula="value / 60.0",
         write_formula="int(value * 60)",
-        min_value=0.0,
-        max_value=4154.0,  # ~29 days in minutes
+        min_value=1.0,
+        max_value=360.0,  # 6 hours in minutes
         step=1.0,
         device_class="duration",
         unit="minutes",
@@ -93,11 +93,11 @@ NUMBER_DEFINITIONS = [
         key="equalize_time",
         name="Equalize Time",
         register_group="time_settings",
-        register_address=4143,
+        register_address=4162,
         formula="value / 60.0",
         write_formula="int(value * 60)",
-        min_value=0.0,
-        max_value=300.0,  # 5 hours in minutes
+        min_value=1.0,
+        max_value=360.0,  # 6 hours in minutes
         step=1.0,
         device_class="duration",
         unit="minutes",

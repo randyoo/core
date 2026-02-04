@@ -164,57 +164,15 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
     @property
     def device_info(self) -> DeviceInfo | None:
         """Return device info."""
-        # Try to get model information from the device_type sensor if available
-        model = None
-        sw_version = None
-        hw_version = None
-        if self.coordinator.data and "data" in self.coordinator.data:
-            device_info_data = self.coordinator.data["data"].get("device_info")
-            if device_info_data:
-                # Get the device type value from register 4101
-                unit_id_value = device_info_data.get(4101)
-                if unit_id_value is not None:
-                    device_type = unit_id_value & 0xFF  # Get LSB (unit type)
-                    model = DEVICE_TYPES.get(device_type, f"Unknown ({device_type})")
-
-                # Get firmware version from registers 4102-4103
-                fw_year = device_info_data.get(4102)
-                fw_register = device_info_data.get(4103)
-                if fw_year is not None and fw_register is not None:
-                    fw_month = (fw_register >> 8) & 0xFF  # Extract high byte (MSB)
-                    fw_day = fw_register & 0xFF  # Extract low byte (LSB)
-                    sw_version = f"{fw_year}-{fw_month:02d}-{fw_day:02d}"
-
-                # Get PCB revision from UNIT_ID register bits 8-15
-                pcb_rev = (unit_id_value >> 8) & 0xFF if unit_id_value else None
-                if pcb_rev is not None:
-                    hw_version = f"Rev {pcb_rev}"
-
-        # Build identifiers with device ID if available
-        identifiers = {(DOMAIN, self._entry.entry_id)}
-
-        # If we can get a proper device ID from registers 4111-4112, use it
-        if device_info_data:
-            device_id_lsw = device_info_data.get(4111)
-            device_id_msw = device_info_data.get(4112)
-            if device_id_lsw is not None and device_id_msw is not None:
-                device_id = (device_id_msw << 16) | device_id_lsw
-                identifiers = {(DOMAIN, str(device_id))}
-
-        return {
-            "identifiers": identifiers,
-            "name": self._entry.title,
-            "manufacturer": "Midnite Solar",
-            "model": model,
-            "sw_version": sw_version,
-            "hw_version": hw_version,
-        }
+        # Get device info from coordinator (includes MAC address from modbus)
+        return self.coordinator.update_device_info()
 
     @property
     def native_value(  # pylint: disable=hass-return-type
         self,
     ) -> Any | None:
         """Return the state of the sensor."""
+        # Check for valid coordinator data
         if not self.coordinator.data or "data" not in self.coordinator.data:
             return None
 
@@ -226,6 +184,17 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
         if value is None:
             return None
 
+        # DEBUG: Log raw register values for temperature sensors to help diagnose issues
+        if self._definition.key in TEMPERATURE_SENSOR_KEYS and isinstance(
+            value, (int, float)
+        ):
+            _LOGGER.debug(
+                "Raw temperature register value for %s at register %s: %s",
+                self._definition.key,
+                self._definition.register_address,
+                value,
+            )
+
         # Apply formula if defined (string-based only for safety)
         if hasattr(self._definition, "formula") and self._definition.formula:
             result = self._apply_formula(value, group_data)
@@ -233,12 +202,32 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
                 return result
 
         # Apply temperature helper for temperature sensors without formulas
+        # Note: battery_temperature now uses formula instead of helper
         if self._definition.key in TEMPERATURE_SENSOR_KEYS and isinstance(
             value, (int, float)
         ):
-            return _TEMP_HELPER.process_temperature(
+            processed_temp = _TEMP_HELPER.process_temperature(
                 self._definition.key, value, self._definition.register_address
             )
+            # Log debug info for improbable temperature values
+            if processed_temp is not None:
+                if processed_temp < -60.0 or processed_temp > 130.0:
+                    _LOGGER.warning(
+                        "Unusual temperature value detected for %s at register %s: %.1f°C (raw_register_value: %s)",
+                        self._definition.key,
+                        self._definition.register_address,
+                        processed_temp,
+                        value,
+                    )
+                elif abs(processed_temp) > 1000.0:
+                    _LOGGER.error(
+                        "EXTREME temperature value detected for %s at register %s: %.1f°C (raw_register_value: %s), suggesting a device communication error",
+                        self._definition.key,
+                        self._definition.register_address,
+                        processed_temp,
+                        value,
+                    )
+            return processed_temp
 
         return value
 
@@ -334,11 +323,15 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
         if self._definition.key in TEMPERATURE_SENSOR_KEYS and isinstance(
             result, (int, float)
         ):
-            return _TEMP_HELPER.process_temperature(
+            # DEBUG: Log ALL temperature values unconditionally for debugging
+            _LOGGER.info(
+                "Temperature sensor %s at register %s: raw_value=%s, processed=%.1f°C",
                 self._definition.key,
-                result,
                 self._definition.register_address,
+                value,
+                result,
             )
+            return result
 
         return result
 

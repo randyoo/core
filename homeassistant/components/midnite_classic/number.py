@@ -102,13 +102,10 @@ def create_number_class(definition: Any):  # noqa: C901
                 self._attr_precision = 1
 
         @property
-        def device_info(self):
+        def device_info(self) -> DeviceInfo | None:
             """Return device info."""
-            return DeviceInfo(
-                identifiers={(DOMAIN, self._entry.entry_id)},
-                name=self._entry.title,
-                manufacturer="Midnite Solar",
-            )
+            # Get device info from coordinator (includes MAC address from modbus)
+            return self.coordinator.update_device_info()
 
         @property
         def native_value(self) -> float | int | None:

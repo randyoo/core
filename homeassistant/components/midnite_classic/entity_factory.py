@@ -1,16 +1,20 @@
 """Factory functions for creating dynamic entities from definitions."""
 
+# pylint: disable=hass-enforce-class-module
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .coordinator import MidniteClassicCoordinator  # noqa: F401
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,22 +60,33 @@ def get_entity_category(category_str: str | None):
 def evaluate_formula(
     formula: str, registers: dict[int, int], data: dict[str, Any]
 ) -> float | int:
-    """Evaluate a formula using register values."""
+    """Evaluate a formula using register values.
+
+    Args:
+        formula: A string formula to evaluate. Only R{register_number} variables are allowed.
+        registers: A dict mapping register numbers to their integer values.
+        data: Additional data context (currently unused).
+
+    Returns:
+        The evaluated result as float or int.
+    """
     # Build context with register values
     context = {}
     for reg_num, value in registers.items():
         context[f"R{reg_num}"] = value
     try:
-        return eval(formula, {"__builtins__": {}}, context)
-    except Exception as exc:
+        return eval(formula, {"__builtins__": {}}, context)  # noqa: S307 - eval is used to evaluate user-defined formulas from the device; context is limited to register values only
+    except ValueError as exc:
         _LOGGER.error("Formula evaluation failed: %s - %s", formula, exc)
         raise ValueError("Formula evaluation failed: %s") from exc
 
 
-class MidniteClassicSensor(CoordinatorEntity, SensorEntity):
+class MidniteClassicSensor(
+    CoordinatorEntity["MidniteClassicCoordinator"], SensorEntity
+):
     """Base class for dynamically created sensors."""
 
-    def __init__(self, coordinator, entry, definition) -> None:
+    def __init__(self, coordinator: Any, entry: Any, definition: Any) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.definition = definition
@@ -94,11 +109,8 @@ class MidniteClassicSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         """Return device info with MAC address identifier."""
-        return {
-            "identifiers": {("midnite_classic", self._entry.entry_id)},
-            "name": self._entry.title,
-            "manufacturer": "Midnite Solar",
-        }
+        # Get device info from coordinator (includes MAC address from modbus)
+        return self.coordinator.update_device_info()
 
     @property
     def native_value(self) -> Any | None:
@@ -130,11 +142,11 @@ class MidniteClassicSensor(CoordinatorEntity, SensorEntity):
             if hasattr(self.definition, "max_value") and result is not None:
                 if result > self.definition.max_value:
                     return None
-
-            return result
-        except Exception as exc:
+        except ValueError as exc:
             _LOGGER.error("Error calculating %s: %s", self.definition.key, exc)
             return None
+        else:
+            return result
 
 
 def create_sensor_from_definition(definition, coordinator, entry):
