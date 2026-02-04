@@ -37,6 +37,7 @@ INFO_FLAG_BITS = {
     "info_flag_eq_mppt": 7,
     "info_flag_current_limit": 9,
     "info_flag_hyper_voc": 10,
+    "info_flag_input_lower_than_output": 8,
     "info_flag_battery_temp_sensor_installed": 13,
     "info_flag_aux1_state_on": 14,
     "info_flag_aux2_state_on": 15,
@@ -46,10 +47,14 @@ INFO_FLAG_BITS = {
     "info_flag_arc_fault": 18,
     "info_flag_negative_battery_current": 19,
     "info_flag_extra_info_display": 21,
+    "info_flag_partial_shade": 22,
     "info_flag_watchdog_reset": 23,
     "info_flag_low_battery_voltage": 24,
+    "info_flag_stack_jumper_not_installed": 25,
     "info_flag_eq_done": 26,
     "info_flag_temp_comp_shorted": 27,
+    "info_flag_unlock_jumper_not_installed": 28,
+    "info_flag_extra_jumper_not_installed": 29,
     "info_flag_input_shorted": 30,
 }
 

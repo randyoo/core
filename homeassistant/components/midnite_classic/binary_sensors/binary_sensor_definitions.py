@@ -192,6 +192,46 @@ INFO_FLAG_SENSORS = [
         device_class="problem",
         entity_category="diagnostic",
     ),
+    EntityDefinition(
+        key="info_flag_stack_jumper_not_installed",
+        name="Stack Jumper Not Installed",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_unlock_jumper_not_installed",
+        name="Unlock Jumper Not Installed",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_extra_jumper_not_installed",
+        name="Extra Jumper Not Installed",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_input_lower_than_output",
+        name="Input Voltage Lower Than Output",
+        register_group="temperatures",
+        register_address=4130,
+        formula="value",
+        entity_category="diagnostic",
+    ),
+    EntityDefinition(
+        key="info_flag_partial_shade",
+        name="Partial Shade Detected",
+        register_group="temperatures",
+        register_address=4131,
+        formula="value",
+        entity_category="diagnostic",
+    ),
 ]
 
 __all__ = ["INFO_FLAG_SENSORS"]
