@@ -95,11 +95,18 @@ class MidniteClassicHub:
 
         # Midnite devices use unit_id 1 by default
         with self._lock:
-            return self._client.write_register(
+            result = self._client.write_register(
                 address=address - 1,  # Modbus addresses are 0-indexed
                 value=value,
                 # device_id=1,  # Removed - may cause issues with certain registers
             )
+            _LOGGER.info(
+                "Wrote register %s (device address: %s): raw value %s",
+                address,
+                address - 1,
+                value,
+            )
+            return result
 
     def read_holding_registers(self, address: int, count: int = 1) -> Any | None:
         """Read holding registers with enhanced retry logic and debug logging.

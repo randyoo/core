@@ -63,13 +63,56 @@ def create_button_class(definition: Any):
 
         async def async_press(self) -> None:
             """Handle the button press."""
+            # Compute the register value using write formula (lambda function)
+            if callable(self._definition.write_formula):
+                register_value = self._definition.write_formula(0)
+            else:
+                # Fallback for string formulas
+                register_value = 0
+
+            # Ensure register_value is an integer
+            if isinstance(register_value, (int, float)):
+                register_value_int = int(register_value)
+            else:
+                # Fallback - shouldn't happen with lambda formulas
+                register_value_int = 0
+
+            # Modbus registers are 16-bit, so mask with 0xFFFF to ensure value fits
+            register_value_int = register_value_int & 0xFFFF
+
             # Check if writes are enabled before proceeding
             if not self.coordinator.api.writes_enabled:
-                _LOGGER.warning(
-                    "Button press for %s blocked by write protection", self._attr_name
+                _LOGGER.info(
+                    "Write protection enabled - button %s would write %s to register %s",
+                    self._attr_name,
+                    register_value_int,
+                    self._definition.register_address,
                 )
                 return
 
-            # Implement button press logic here
+            # Write to register
+            try:
+                await self.hass.async_add_executor_job(
+                    self.coordinator.api.write_register,
+                    int(self._definition.register_address),
+                    register_value_int,
+                )
+
+                _LOGGER.info(
+                    "Button %s wrote %s to register %s",
+                    self._attr_name,
+                    register_value_int,
+                    self._definition.register_address,
+                )
+
+                # Force a refresh to show the updated value
+                await self.coordinator.async_refresh()
+            except (ValueError, TypeError) as exc:
+                _LOGGER.error(
+                    "Failed to write button %s to register %s: %s",
+                    self._definition.key,
+                    self._definition.register_address,
+                    exc,
+                )
 
     return DynamicButton

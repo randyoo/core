@@ -47,6 +47,7 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
         super().__init__()
         self._discovery_info: DhcpServiceInfo | None = None
         _LOGGER.info("MidniteClassicConfigFlow initialized")
+        _LOGGER.debug("Translation domain for config flow: %s", DOMAIN)
 
     @property
     def discovery_info(self) -> DhcpServiceInfo | None:
@@ -139,6 +140,7 @@ class MidniteClassicConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL
                     ): int,
+                    vol.Optional("enable_writes", default=False): bool,
                 }
             )
 

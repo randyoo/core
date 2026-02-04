@@ -17,6 +17,7 @@ DIAGNOSTIC_SENSORS = [
             value = (data[4131] << 16) | data[4130]
         """,
         entity_category="diagnostic",
+        hidden=True,
     ),
     SensorDefinition(
         key="nite_minutes_no_pwr",

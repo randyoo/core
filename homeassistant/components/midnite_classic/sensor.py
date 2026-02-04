@@ -120,6 +120,9 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
         # Set enabled_by_default flag if defined
         self._set_enabled_by_default()
 
+        # Set hidden flag if defined (hides entity from UI by default but keeps it enabled)
+        self._set_hidden()
+
     def _set_device_class(self) -> None:
         """Set the device class attribute."""
         if hasattr(self._definition, "device_class") and self._definition.device_class:
@@ -160,6 +163,11 @@ class DynamicSensor(CoordinatorEntity[MidniteClassicCoordinator], SensorEntity):
             self._attr_entity_registry_enabled_default = (
                 self._definition.enabled_by_default
             )
+
+    def _set_hidden(self) -> None:
+        """Set the hidden flag (hides entity from UI by default but keeps it enabled)."""
+        if hasattr(self._definition, "hidden") and self._definition.hidden:
+            self._attr_entity_registry_visible_default = False
 
     @property
     def device_info(self) -> DeviceInfo | None:

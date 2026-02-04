@@ -26,5 +26,6 @@ NETWORK_SENSORS = [
             value = ":".join(f"{byte:02X}" for byte in mac_bytes)
         """,
         entity_category="diagnostic",
+        hidden=True,
     ),
 ]

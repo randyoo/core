@@ -10,10 +10,12 @@
       },
       "user": {
         "data": {
+          "enable_writes": "Enable writes to device",
           "host": "IP Address",
           "port": "Port",
           "scan_interval": "Scan interval (seconds)"
-        }
+        },
+        "description": "Setting up Midnite Classic solar charge controller. Ticking the box below enables write operations to the device."
       }
     }
   },
@@ -23,7 +25,8 @@
         "data": {
           "enable_writes": "Enable writes to device",
           "scan_interval": "Scan interval (seconds)"
-        }
+        },
+        "description": "Enable write operations to the device. This allows changing device settings like voltage and current limits."
       }
     }
   }

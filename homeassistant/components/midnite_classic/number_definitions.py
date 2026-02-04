@@ -1,4 +1,9 @@
-"""Number entity definitions for midnite_classic integration."""
+"""Number entity definitions for midnite_classic integration.
+
+Formulas in number entities use expression syntax (not assignment) because
+number.py evaluates formulas using eval() which doesn't support assignment statements.
+For example: "float(value) / 10.0" rather than "value = value / 10.0"
+"""
 
 from __future__ import annotations
 
@@ -11,7 +16,8 @@ NUMBER_DEFINITIONS = [
         name="Absorb Voltage",
         register_group="settings",
         register_address=4149,
-        formula="value / 10.0",
+        # Convert raw register value to voltage (divided by 10)
+        formula="float(value) / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
         max_value=65.0,
@@ -25,7 +31,8 @@ NUMBER_DEFINITIONS = [
         name="Float Voltage",
         register_group="settings",
         register_address=4150,
-        formula="value / 10.0",
+        # Convert raw register value to voltage (divided by 10)
+        formula="float(value) / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
         max_value=65.0,
@@ -39,7 +46,8 @@ NUMBER_DEFINITIONS = [
         name="Equalize Voltage",
         register_group="settings",
         register_address=4151,
-        formula="value / 10.0",
+        # Convert raw register value to voltage (divided by 10)
+        formula="float(value) / 10.0",
         write_formula="int(value * 10)",
         min_value=40.0,
         max_value=65.0,
@@ -48,40 +56,31 @@ NUMBER_DEFINITIONS = [
         unit="V",
         precision=1,
     ),
-    # Current settings - fix - appears to be hallucinated!
+    # Battery current limit - single setting for both absorb and float modes
+    # Register 4148 = Battery output Current Limit (divided by 10, range 1-200A)
     NumberDefinition(
-        key="absorb_current_limit",
-        name="Absorb Current Limit",
+        key="battery_current_limit",
+        name="Battery Current Limit",
         register_group="settings",
-        register_address=4153,
-        formula="value / 10.0",
+        register_address=4148,
+        # Convert raw register value to current (divided by 10)
+        formula="float(value) / 10.0",
         write_formula="int(value * 10)",
-        min_value=0.0,
+        min_value=1.0,
         max_value=200.0,
         step=1.0,
         device_class="current",
         unit="A",
+        precision=0,
     ),
-    NumberDefinition(
-        key="float_current_limit",
-        name="Float Current Limit",
-        register_group="settings",
-        register_address=4154,
-        formula="value / 10.0",
-        write_formula="int(value * 10)",
-        min_value=0.0,
-        max_value=200.0,
-        step=1.0,
-        device_class="current",
-        unit="A",
-    ),
-    # Time settings - using correct register addresses from midnite-registers.json.txt
+    # EEPROM Absorb Time setting - Register 4154
     NumberDefinition(
         key="absorb_time",
         name="Absorb Time",
         register_group="time_settings",
         register_address=4154,
-        formula="value / 60.0",
+        # Convert minutes to seconds (registers provide time in seconds, but user inputs in minutes)
+        formula="float(value) / 60.0",
         write_formula="int(value * 60)",
         min_value=1.0,
         max_value=360.0,  # 6 hours in minutes
@@ -94,7 +93,8 @@ NUMBER_DEFINITIONS = [
         name="Equalize Time",
         register_group="time_settings",
         register_address=4162,
-        formula="value / 60.0",
+        # Convert seconds to minutes (registers provide time in seconds)
+        formula="float(value) / 60.0",
         write_formula="int(value * 60)",
         min_value=1.0,
         max_value=360.0,  # 6 hours in minutes
@@ -119,7 +119,8 @@ NUMBER_DEFINITIONS = [
         name="Temperature Compensation",
         register_group="settings",
         register_address=4155,
-        formula="value / 10.0",
+        # Convert raw register value (percentage divided by 10)
+        formula="float(value) / 10.0",
         write_formula="int(value * 10)",
         min_value=-20.0,
         max_value=20.0,
@@ -143,4 +144,4 @@ NUMBER_DEFINITIONS = [
     # ),
 ]
 
-# Total: 9 number entities defined
+# Total: 8 number entities defined
