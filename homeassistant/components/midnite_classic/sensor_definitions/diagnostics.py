@@ -32,13 +32,27 @@ DIAGNOSTIC_SENSORS = [
         entity_category="diagnostic",
     ),
     # Diagnostic sensors
+    # Consolidated Rest Reason sensor that shows rest reason when internal state is "Resting"
     SensorDefinition(
         key="rest_reason",
-        name="Rest Reason",
+        name="Internal State/Rest Reason",
         register_group="diagnostics",
         register_address=4275,
+        secondary_registers=[4120],
         formula="""
-            value = REST_REASONS.get(value, f"Unknown ({value})")
+            # Get the rest reason from register 4275
+            rest_reason = REST_REASONS.get(value, f"Unknown ({value})")
+
+            # Get the internal state from register 4120
+            internal_state_value = data.get(4120, 0) & 0xFF
+            internal_state = INTERNAL_STATES.get(internal_state_value, f"Unknown ({internal_state_value})")
+
+            # If internal state is "Resting", show the rest reason
+            # Otherwise, show the internal state
+            if internal_state == "Resting":
+                value = rest_reason
+            else:
+                value = internal_state
         """,
         entity_category="diagnostic",
     ),

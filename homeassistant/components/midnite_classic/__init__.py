@@ -19,6 +19,7 @@ _PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.BINARY_SENSOR,
+    Platform.SELECT,
 ]
 
 type MidniteClassicConfigEntry = ConfigEntry[MidniteClassicCoordinator]

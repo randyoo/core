@@ -5,6 +5,112 @@ from __future__ import annotations
 from .entity_definitions import SelectDefinition
 
 SELECT_DEFINITIONS = [
+    # Force Charge State selector - combines the three force charge buttons
+    SelectDefinition(
+        key="force_charge_state",
+        name="Force Charge State",
+        register_group="settings",
+        register_address=4160,  # Low 16 bits for force flags
+        formula="""
+            # Read current state from registers 4160 and 4161
+            combined_value = (data.get(4161, 0) << 16) | data.get(4160, 0)
+
+            # Check which force charge bits are set
+            if combined_value & (1 << 7):  # Equalize bit (bit 7)
+                return "EQ"
+            elif combined_value & (1 << 6):  # Bulk/Absorb bit (bit 6)
+                return "Bulk/Absorb"
+            elif combined_value & (1 << 5):  # Float bit (bit 5)
+                return "Float"
+            else:
+                # Get current charge stage from register 4120
+                charge_stage_value = data.get(4120, 0) >> 8 & 0xFF
+                from .const import CHARGE_STAGES
+                current_stage = CHARGE_STAGES.get(charge_stage_value, "Unknown")
+                return current_stage
+        """,
+        write_formula="""
+            # Clear all force charge bits first (bits 5-7 in register 4160)
+            value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+
+            # Set the appropriate bit based on selection
+            if x == "EQ":
+                value |= 1 << 7
+            elif x == "Bulk/Absorb":
+                value |= 1 << 6
+            elif x == "Float":
+                value |= 1 << 5
+
+            return value & 0xFFFF
+        """,
+        options=[
+            "Float",
+            "Bulk/Absorb",
+            "EQ",
+        ],
+    ),
+    # Force Actions selector - combines remaining force actions
+    SelectDefinition(
+        key="force_actions",
+        name="Force Actions",
+        register_group="settings",
+        register_address=4160,  # Low 16 bits for most force flags
+        formula="""
+            # Read current state from registers 4160 and 4161
+            combined_value = (data.get(4161, 0) << 16) | data.get(4160, 0)
+
+            # Check which force action bits are set
+            if combined_value & (1 << 23):  # Reset faults bit (bit 23)
+                return "Reset Faults"
+            elif combined_value & (1 << 16):  # Reset Aeq Counts bit (bit 16)
+                return "Reset Auto EQ Counter"
+            elif combined_value & (1 << 11):  # Sweep/Re-track bit (bit 11)
+                return "Sweep/Re-track"
+            elif combined_value & (1 << 8):  # Force New Day bit (bit 8)
+                return "New Day"
+            elif combined_value & (1 << 4):  # Reset Info Flags bit (bit 4)
+                return "Reset Info Flags"
+            elif combined_value & (1 << 3):  # EEPROM Init Read bit (bit 3)
+                return "EEPROM Init Read"
+            elif combined_value & (1 << 2):  # EEPROM Update bit (bit 2)
+                return "EEPROM Update"
+            else:
+                return "None"
+        """,
+        write_formula="""
+            # Clear all force action bits first
+            value &= ~((1 << 23) | (1 << 16) | (1 << 11) | (1 << 8) |
+                       (1 << 4) | (1 << 3) | (1 << 2))
+
+            # Set the appropriate bit based on selection
+            if x == "Reset Faults":
+                value |= 1 << 23
+            elif x == "Reset Auto EQ Counter":
+                value |= 1 << 16
+            elif x == "Sweep/Re-track":
+                value |= 1 << 11
+            elif x == "New Day":
+                value |= 1 << 8
+            elif x == "Reset Info Flags":
+                value |= 1 << 4
+            elif x == "EEPROM Init Read":
+                value |= 1 << 3
+            elif x == "EEPROM Update":
+                value |= 1 << 2
+
+            return value & 0xFFFF
+        """,
+        options=[
+            "None",  # No force action (default)
+            "Reset Faults",
+            "Reset Auto EQ Counter",
+            "Sweep/Re-track",
+            "New Day",
+            "Reset Info Flags",
+            "EEPROM Init Read",
+            "EEPROM Update",
+        ],
+    ),
     # Charge mode selection
     SelectDefinition(
         key="charge_mode",

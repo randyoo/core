@@ -57,7 +57,9 @@ LOW_16_BUTTONS = [
 
 # High 16 bits (register 4161) - non-reserved bits
 HIGH_16_BUTTONS = [
-    create_force_flag_button("reset_aeq_counts", 16, "Reset Aeq Counts", 4161),
+    create_force_flag_button(
+        "reset_aeq_counts", 16, "Force Reset Auto EQ Counter", 4161
+    ),
     create_force_flag_button("reset_faults", 23, "Force Reset Faults", 4161),
 ]
 

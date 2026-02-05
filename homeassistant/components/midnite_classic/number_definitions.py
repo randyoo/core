@@ -13,7 +13,7 @@ NUMBER_DEFINITIONS = [
     # Battery voltage settings - using correct register addresses from midnite-registers.json.txt
     NumberDefinition(
         key="absorb_voltage",
-        name="Absorb Voltage",
+        name="Voltage: Absorb",
         register_group="settings",
         register_address=4149,
         # Convert raw register value to voltage (divided by 10)
@@ -28,7 +28,7 @@ NUMBER_DEFINITIONS = [
     ),
     NumberDefinition(
         key="float_voltage",
-        name="Float Voltage",
+        name="Voltage: Float",
         register_group="settings",
         register_address=4150,
         # Convert raw register value to voltage (divided by 10)
@@ -43,7 +43,7 @@ NUMBER_DEFINITIONS = [
     ),
     NumberDefinition(
         key="equalize_voltage",
-        name="Equalize Voltage",
+        name="Voltage: Equalize",
         register_group="settings",
         register_address=4151,
         # Convert raw register value to voltage (divided by 10)
@@ -60,7 +60,7 @@ NUMBER_DEFINITIONS = [
     # Register 4148 = Battery output Current Limit (divided by 10, range 1-200A)
     NumberDefinition(
         key="battery_current_limit",
-        name="Battery Current Limit",
+        name="Current Limit: Battery",
         register_group="settings",
         register_address=4148,
         # Convert raw register value to current (divided by 10)
@@ -76,7 +76,7 @@ NUMBER_DEFINITIONS = [
     # EEPROM Absorb Time setting - Register 4154
     NumberDefinition(
         key="absorb_time",
-        name="Absorb Time",
+        name="Time: Absorption",
         register_group="time_settings",
         register_address=4154,
         # Convert minutes to seconds (registers provide time in seconds, but user inputs in minutes)
@@ -90,7 +90,7 @@ NUMBER_DEFINITIONS = [
     ),
     NumberDefinition(
         key="equalize_time",
-        name="Equalize Time",
+        name="Time: Equalization",
         register_group="time_settings",
         register_address=4162,
         # Convert seconds to minutes (registers provide time in seconds)

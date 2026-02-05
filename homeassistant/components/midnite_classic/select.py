@@ -1,0 +1,307 @@
+"""Support for Midnite Classic select platform."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, cast
+
+from homeassistant.components.select import SelectEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import DOMAIN
+from .coordinator import MidniteClassicCoordinator
+from .select_definitions import SELECT_DEFINITIONS
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_formula_indentation(formula_str: str) -> str:
+    """Normalize indentation in formula strings to handle copy-pasted code."""
+    lines = formula_str.split("\n")
+    if not lines:
+        return formula_str
+
+    # Find the minimum indentation (leading whitespace)
+    min_indent = None
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped:  # Only consider non-empty lines
+            indent = len(line) - len(stripped)
+            if min_indent is None or indent < min_indent:
+                min_indent = indent
+
+    # Remove the minimum indentation from all lines
+    if min_indent is not None and min_indent > 0:
+        normalized_lines = []
+        for line in lines:
+            if len(line) >= min_indent and line[:min_indent].isspace():
+                normalized_lines.append(line[min_indent:])
+            else:
+                normalized_lines.append(line)
+        formula_str = "\n".join(normalized_lines)
+
+    # Replace 'return' statements with assignment to value variable
+    # This is needed because exec() doesn't support return statements
+    return formula_str.replace("return ", "value = ")
+
+
+def _create_formula_function(formula_str: str, arg_count: int) -> Any:
+    """Convert a formula string to a callable function."""
+    if not formula_str or callable(formula_str):
+        return formula_str
+
+    # Normalize and strip whitespace from formula
+    formula_str = _normalize_formula_indentation(formula_str).strip()
+
+    # Create the function based on number of arguments
+    if arg_count == 2:
+        # For formulas that take (value, data) - like current_option
+        func_str = f"""
+def formula_func(value, data):
+    {formula_str}
+    return value
+"""
+    elif arg_count == 1:
+        # For formulas that take (x) - like write_formula
+        func_str = f"""
+def formula_func(x):
+    {formula_str}
+    return value
+"""
+    else:
+        func_str = f"""
+def formula_func(*args):
+    {formula_str}
+    return value
+"""
+
+    local_vars: dict[str, Any] = {}
+    try:
+        exec(  # noqa: S102
+            compile(func_str, "<string>", "exec"), {"__name__": "__main__"}, local_vars
+        )
+        return local_vars.get("formula_func")
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.error("Error creating formula function: %s", exc)
+        return None
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Midnite Classic selects."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+
+    # Convert string formulas to lambda functions for each definition
+    modified_definitions = []
+    for definition in SELECT_DEFINITIONS:
+        # Create a copy of the definition
+        formula = None
+        if callable(definition.formula):
+            formula = definition.formula
+        elif isinstance(definition.formula, str):
+            formula = _create_formula_function(definition.formula, 2)
+
+        write_formula = None
+        if callable(definition.write_formula):
+            write_formula = definition.write_formula
+        elif isinstance(definition.write_formula, str):
+            write_formula = _create_formula_function(definition.write_formula, 2)
+
+        modified_def = type(definition)(
+            key=definition.key,
+            name=definition.name,
+            register_group=definition.register_group,
+            register_address=definition.register_address,
+            secondary_registers=list(definition.secondary_registers),
+            formula=formula,
+            write_formula=write_formula,
+            bit_extraction=definition.bit_extraction,
+            string_format=definition.string_format,
+            device_class=definition.device_class,
+            state_class=definition.state_class,
+            unit=definition.unit,
+            precision=definition.precision,
+            enabled_by_default=definition.enabled_by_default,
+            hidden=definition.hidden,
+            entity_category=definition.entity_category,
+            min_value=definition.min_value,
+            max_value=definition.max_value,
+            extra_attributes=list(definition.extra_attributes),
+            options=list(definition.options) if definition.options else None,
+            mode=definition.mode,
+            polling_interval=definition.polling_interval,
+            icon=definition.icon,
+        )
+        modified_definitions.append(modified_def)
+
+    selects = []
+    for definition in modified_definitions:
+        select_class = create_select_class(definition)
+        selects.append(select_class(coordinator, entry))
+
+    async_add_entities(selects)
+
+
+def create_select_class(definition: Any):
+    """Dynamically create a select class for the given definition."""
+
+    class DynamicSelect(CoordinatorEntity[MidniteClassicCoordinator], SelectEntity):
+        """Dynamic select based on definition."""
+
+        def __init__(
+            self, coordinator: MidniteClassicCoordinator, entry: ConfigEntry
+        ) -> None:
+            """Initialize the select."""
+            super().__init__(coordinator)
+            self._entry = entry
+            self._definition = definition
+
+            # Set basic attributes from definition
+            self._attr_name = definition.name
+            self._attr_unique_id = f"{entry.entry_id}_{definition.key}"
+            if hasattr(definition, "icon"):
+                self._attr_icon = definition.icon
+            if hasattr(definition, "entity_category"):
+                self._attr_entity_category = definition.entity_category
+
+        @property
+        def device_info(self) -> DeviceInfo | None:
+            """Return device info."""
+            # Get device info from coordinator (includes MAC address from modbus)
+            return self.coordinator.update_device_info()
+
+        @property
+        def current_option(self) -> str | None:
+            """Return the selected option."""
+            # Evaluate formula to get current value
+            if callable(self._definition.formula):
+                try:
+                    # Get register data from coordinator
+                    group_data = self.coordinator.data.get("data", {}).get(
+                        self._definition.register_group, {}
+                    )
+                    current_value = group_data.get(self._definition.register_address, 0)
+
+                    # Call formula with (value, data_dict)
+                    current_value = self._definition.formula(current_value, group_data)
+                    return cast(str | None, current_value)
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.error(
+                        "Error evaluating formula for select %s: %s",
+                        self._attr_name,
+                        exc,
+                    )
+                    return None
+            else:
+                # Fallback - shouldn't happen with proper definitions
+                return None
+
+        @property
+        def options(self) -> list[str]:
+            """Return the available options."""
+            if hasattr(self._definition, "options") and self._definition.options:
+                options_list = cast(list[str | None], self._definition.options)
+                # Filter out None values for options list (Home Assistant requires str only)
+                return [opt for opt in options_list if opt is not None]
+            return []
+
+        async def async_select_option(self, option: str) -> None:
+            """Change the selected option."""
+            # Read current value from register first
+            try:
+                current_register_value = await self.hass.async_add_executor_job(
+                    self.coordinator.api.read_holding_registers,
+                    int(self._definition.register_address),
+                    1,
+                )
+                if not current_register_value:
+                    _LOGGER.error(
+                        "Failed to read current value from register %s",
+                        self._definition.register_address,
+                    )
+                    return
+
+                current_value = current_register_value[0]
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.error(
+                    "Failed to read register %s: %s",
+                    self._definition.register_address,
+                    exc,
+                )
+                return
+
+            # Compute the register value using write formula
+            if callable(self._definition.write_formula):
+                try:
+                    # Call write formula with (option, current_value)
+                    register_value = self._definition.write_formula(
+                        option, current_value
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    _LOGGER.error(
+                        "Error in write formula for select %s: %s",
+                        self._attr_name,
+                        exc,
+                    )
+                    return
+            else:
+                # Fallback for string formulas - shouldn't happen after conversion
+                register_value = 0
+
+            # Ensure register_value is an integer
+            if isinstance(register_value, (int, float)):
+                register_value_int = int(register_value)
+            else:
+                _LOGGER.error(
+                    "Write formula for select %s returned non-numeric value: %s",
+                    self._attr_name,
+                    type(register_value),
+                )
+                return
+
+            # Modbus registers are 16-bit, so mask with 0xFFFF to ensure value fits
+            register_value_int = register_value_int & 0xFFFF
+
+            # Check if writes are enabled before proceeding
+            if not self.coordinator.api.writes_enabled:
+                _LOGGER.info(
+                    "Write protection enabled - select %s would write %s to register %s",
+                    self._attr_name,
+                    register_value_int,
+                    self._definition.register_address,
+                )
+                return
+
+            # Write to register
+            try:
+                await self.hass.async_add_executor_job(
+                    self.coordinator.api.write_register,
+                    int(self._definition.register_address),
+                    register_value_int,
+                )
+
+                _LOGGER.info(
+                    "Select %s wrote %s to register %s",
+                    self._attr_name,
+                    register_value_int,
+                    self._definition.register_address,
+                )
+
+                # Force a refresh to show the updated value
+                await self.coordinator.async_refresh()
+            except (ValueError, TypeError) as exc:
+                _LOGGER.error(
+                    "Failed to write select %s to register %s: %s",
+                    self._definition.key,
+                    self._definition.register_address,
+                    exc,
+                )
+
+    return DynamicSelect

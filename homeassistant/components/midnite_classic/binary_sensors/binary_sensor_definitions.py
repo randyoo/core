@@ -16,7 +16,7 @@ INFO_FLAG_SENSORS = [
     # Register 4130 (Low word)
     EntityDefinition(
         key="info_flag_over_temperature",
-        name="Over Temperature",
+        name="Flag: Over Temperature",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -25,7 +25,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_eeprom_error",
-        name="EEPROM Error",
+        name="Flag: EEPROM Error",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -34,7 +34,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_serial_write_lock",
-        name="Serial Write Lock",
+        name="Flag: Serial Write Lock",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -42,7 +42,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_equalize_in_progress",
-        name="Equalize In Progress",
+        name="Flag: Equalize In Progress",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -51,16 +51,16 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_eq_mppt",
-        name="EQ MPPT",
+        name="Flag: EQ MPPT",
         register_group="temperatures",
         register_address=4130,
         formula="value",
-        device_class="problem",
+        device_class="running",
         entity_category="diagnostic",
     ),
     EntityDefinition(
         key="info_flag_current_limit",
-        name="Current Limit Reached",
+        name="Flag: Current Limit Reached",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -69,7 +69,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_hyper_voc",
-        name="HyperVoc",
+        name="Flag: HyperVoc",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -78,7 +78,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_battery_temp_sensor_installed",
-        name="Battery Temp Sensor Installed",
+        name="Flag: Battery Temp Sensor Installed",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -87,7 +87,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_aux1_state_on",
-        name="Aux 1 State On",
+        name="Flag: Aux 1 State On",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -96,7 +96,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_aux2_state_on",
-        name="Aux 2 State On",
+        name="Flag: Aux 2 State On",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -106,7 +106,7 @@ INFO_FLAG_SENSORS = [
     # Register 4131 (High word)
     EntityDefinition(
         key="info_flag_ground_fault",
-        name="Ground Fault",
+        name="Flag: Ground Fault",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -115,7 +115,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_over_current_protection",
-        name="Over Current Protection (OCP)",
+        name="Flag: Over Current Protection (OCP)",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -124,7 +124,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_arc_fault",
-        name="Arc Fault",
+        name="Flag: Arc Fault",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -133,7 +133,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_negative_battery_current",
-        name="Negative Battery Current",
+        name="Flag: Negative Battery Current",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -142,7 +142,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_extra_info_display",
-        name="Extra Info Available for Display",
+        name="Flag: Extra Info Available for Display",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -150,7 +150,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_watchdog_reset",
-        name="Watchdog Reset",
+        name="Flag: Watchdog Reset",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -159,7 +159,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_low_battery_voltage",
-        name="Low Battery Voltage",
+        name="Flag: Low Battery Voltage",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -168,7 +168,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_eq_done",
-        name="Equalize Done",
+        name="Flag: Equalize Done",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -176,7 +176,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_temp_comp_shorted",
-        name="Temperature Compensated Shorted",
+        name="Flag: Temperature Compensated Shorted",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -185,7 +185,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_input_shorted",
-        name="Input Shorted",
+        name="Flag: Input Shorted",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -194,7 +194,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_stack_jumper_not_installed",
-        name="Stack Jumper Not Installed",
+        name="Flag: Stack Jumper Not Installed",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -202,7 +202,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_unlock_jumper_not_installed",
-        name="Unlock Jumper Not Installed",
+        name="Flag: Unlock Jumper Not Installed",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -210,7 +210,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_extra_jumper_not_installed",
-        name="Extra Jumper Not Installed",
+        name="Flag: Extra Jumper Not Installed",
         register_group="temperatures",
         register_address=4131,
         formula="value",
@@ -218,7 +218,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_input_lower_than_output",
-        name="Input Voltage Lower Than Output",
+        name="Flag: Input Voltage Lower Than Output",
         register_group="temperatures",
         register_address=4130,
         formula="value",
@@ -226,7 +226,7 @@ INFO_FLAG_SENSORS = [
     ),
     EntityDefinition(
         key="info_flag_partial_shade",
-        name="Partial Shade Detected",
+        name="Flag: Partial Shade Detected",
         register_group="temperatures",
         register_address=4131,
         formula="value",

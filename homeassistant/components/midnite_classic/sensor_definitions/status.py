@@ -6,6 +6,7 @@ from ..entity_definitions import SensorDefinition
 
 STATUS_SENSORS = [
     # Status sensors
+    # Note: internal_state sensor was removed as it's now consolidated into rest_reason
     SensorDefinition(
         key="charge_stage",
         name="Charge Stage",
@@ -16,17 +17,5 @@ STATUS_SENSORS = [
             value = CHARGE_STAGES.get(charge_stage_value, f"Unknown ({charge_stage_value})")
         """,
         device_class="enum",
-    ),
-    SensorDefinition(
-        key="internal_state",
-        name="Internal State",
-        register_group="status",
-        register_address=4120,
-        formula="""
-            internal_state_value = value & 0xFF
-            internal_state = INTERNAL_STATES.get(internal_state_value, f"Unknown ({internal_state_value})")
-            value = internal_state
-        """,
-        entity_category="diagnostic",
     ),
 ]
