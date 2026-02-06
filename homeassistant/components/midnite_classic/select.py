@@ -50,7 +50,12 @@ def _normalize_formula_indentation(formula_str: str) -> str:
     return formula_str.replace("return ", "value = ")
 
 
-def _create_formula_function(formula_str: str, arg_count: int) -> Any:
+def _create_formula_function(
+    formula_str: str,
+    arg_count: int,
+    extra_locals: dict[str, Any] | None = None,
+    second_param_name: str = "x",
+) -> Any:
     """Convert a formula string to a callable function."""
     if not formula_str or callable(formula_str):
         return formula_str
@@ -58,32 +63,64 @@ def _create_formula_function(formula_str: str, arg_count: int) -> Any:
     # Normalize and strip whitespace from formula
     formula_str = _normalize_formula_indentation(formula_str).strip()
 
+    # Create locals dict with optional extra variables (like 'data')
+    local_vars: dict[str, Any] = extra_locals or {}
+
     # Create the function based on number of arguments
     if arg_count == 2:
-        # For formulas that take (value, x) - where value is computed value and x is option
+        # For formulas that take (value, second) - where value is computed value
+        # The formula body needs to be indented with 4 spaces inside the function
+        func_lines = ["    " + line for line in formula_str.split("\n")]
+        formula_str = "\n".join(func_lines)
+
         func_str = f"""
-def formula_func(value, x):
-    {formula_str}
+def formula_func(value, {second_param_name}):
+{formula_str}
     return value
 """
     elif arg_count == 1:
         # For formulas that take (x) - like write_formula
+        func_lines = []
+        for line in formula_str.split("\n"):
+            stripped = line.lstrip()
+            if stripped:
+                func_lines.append("    " + stripped)
+            else:
+                func_lines.append(line)
+        formula_str = "\n".join(func_lines)
+
         func_str = f"""
 def formula_func(x):
-    {formula_str}
+{formula_str}
     return value
 """
     else:
+        # For formulas with variable arguments
+        func_lines = []
+        for line in formula_str.split("\n"):
+            stripped = line.lstrip()
+            if stripped:
+                func_lines.append("    " + stripped)
+            else:
+                func_lines.append(line)
+        formula_str = "\n".join(func_lines)
+
         func_str = f"""
 def formula_func(*args):
-    {formula_str}
+{formula_str}
     return value
 """
 
-    local_vars: dict[str, Any] = {}
+    # Create globals dict with proper module context for imports
+    globals_dict = {
+        "__name__": __name__,
+        "__file__": __file__,
+        "__package__": __name__.rpartition(".")[0],
+    }
+
     try:
         exec(  # noqa: S102
-            compile(func_str, "<string>", "exec"), {"__name__": "__main__"}, local_vars
+            compile(func_str, "<string>", "exec"), globals_dict, local_vars
         )
         return local_vars.get("formula_func")
     except Exception as exc:  # noqa: BLE001
@@ -107,13 +144,19 @@ async def async_setup_entry(
         if callable(definition.formula):
             formula = definition.formula
         elif isinstance(definition.formula, str):
-            formula = _create_formula_function(definition.formula, 2)
+            # Read formulas use 'data' for second parameter (the register data dict)
+            formula = _create_formula_function(
+                definition.formula, 2, second_param_name="data"
+            )
 
         write_formula = None
         if callable(definition.write_formula):
             write_formula = definition.write_formula
         elif isinstance(definition.write_formula, str):
-            write_formula = _create_formula_function(definition.write_formula, 2)
+            # Write formulas use 'option' for second parameter (the option string)
+            write_formula = _create_formula_function(
+                definition.write_formula, 2, second_param_name="option"
+            )
 
         modified_def = type(definition)(
             key=definition.key,
@@ -190,7 +233,7 @@ def create_select_class(definition: Any):
                     )
                     current_value = group_data.get(self._definition.register_address, 0)
 
-                    # Call formula with (value, data_dict)
+                    # Call formula with (value, data_dict) - pass group_data as second argument
                     current_value = self._definition.formula(current_value, group_data)
                     return cast(str | None, current_value)
                 except Exception as exc:  # noqa: BLE001

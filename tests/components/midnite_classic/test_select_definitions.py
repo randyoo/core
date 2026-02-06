@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from homeassistant.components.midnite_classic.select import _create_formula_function
 from homeassistant.components.midnite_classic.select_definitions import (
     SELECT_DEFINITIONS,
 )
@@ -198,13 +199,13 @@ class TestForceChargeStateWriteFormulas:
         """Test writing EQ option."""
         # Simplified inline formula without indentation issues
         value = 0
-        x = "EQ"
+        option = "EQ"
         value &= ~((1 << 7) | (1 << 6) | (1 << 5))
-        if x == "EQ":
+        if option == "EQ":
             value |= 1 << 7
-        elif x == "Bulk/Absorb":
+        elif option == "Bulk/Absorb":
             value |= 1 << 6
-        elif x == "Float":
+        elif option == "Float":
             value |= 1 << 5
 
         assert value == 0x80
@@ -213,13 +214,13 @@ class TestForceChargeStateWriteFormulas:
         """Test writing Bulk/Absorb option."""
         # Simplified inline formula without indentation issues
         value = 0
-        x = "Bulk/Absorb"
+        option = "Bulk/Absorb"
         value &= ~((1 << 7) | (1 << 6) | (1 << 5))
-        if x == "EQ":
+        if option == "EQ":
             value |= 1 << 7
-        elif x == "Bulk/Absorb":
+        elif option == "Bulk/Absorb":
             value |= 1 << 6
-        elif x == "Float":
+        elif option == "Float":
             value |= 1 << 5
 
         assert value == 0x40
@@ -228,13 +229,13 @@ class TestForceChargeStateWriteFormulas:
         """Test writing Float option."""
         # Simplified inline formula without indentation issues
         value = 0
-        x = "Float"
+        option = "Float"
         value &= ~((1 << 7) | (1 << 6) | (1 << 5))
-        if x == "EQ":
+        if option == "EQ":
             value |= 1 << 7
-        elif x == "Bulk/Absorb":
+        elif option == "Bulk/Absorb":
             value |= 1 << 6
-        elif x == "Float":
+        elif option == "Float":
             value |= 1 << 5
 
         assert value == 0x20
@@ -243,13 +244,13 @@ class TestForceChargeStateWriteFormulas:
         """Test writing with existing register value."""
         # Simplified inline formula without indentation issues
         value = 0x04  # Bit 2 already set
-        x = "EQ"
+        option = "EQ"
         value &= ~((1 << 7) | (1 << 6) | (1 << 5))
-        if x == "EQ":
+        if option == "EQ":
             value |= 1 << 7
-        elif x == "Bulk/Absorb":
+        elif option == "Bulk/Absorb":
             value |= 1 << 6
-        elif x == "Float":
+        elif option == "Float":
             value |= 1 << 5
 
         assert value == 0x84  # Bit 7 and bit 2 should be set
@@ -315,6 +316,85 @@ class TestSelectWriteWithSkipRead:
             value |= 1 << 5
 
         assert value == 0x20
+
+
+class TestFormulaFunctionCreation:
+    """Test the _create_formula_function creates working functions."""
+
+    def test_force_charge_state_write_formula_with_current_value_zero(self) -> None:
+        """Test Force Charge State write formula when current_value=0 (skip_read)."""
+
+        # The Force Charge State write formula (using 'option' parameter)
+        formula_str = """
+            # Clear all force charge bits first (bits 5-7 in register 4160)
+            value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+
+            # Set the appropriate bit based on selection
+            if option == "EQ":
+                value |= 1 << 7
+            elif option == "Bulk/Absorb":
+                value |= 1 << 6
+            elif option == "Float":
+                value |= 1 << 5
+
+            return value & 0xFFFF
+        """
+
+        # Create the function with 2 arguments: (value, option)
+        func = _create_formula_function(formula_str, 2, second_param_name="option")
+
+        # Test with current_value=0 and option="Float"
+        result = func(0, "Float")
+        assert result == 0x20, f"Expected 0x20 (32) but got {result}"
+
+        # Test with current_value=0 and option="Bulk/Absorb"
+        result = func(0, "Bulk/Absorb")
+        assert result == 0x40, f"Expected 0x40 (64) but got {result}"
+
+        # Test with current_value=0 and option="EQ"
+        result = func(0, "EQ")
+        assert result == 0x80, f"Expected 0x80 (128) but got {result}"
+
+    def test_force_actions_write_formula_with_current_value_zero(self) -> None:
+        """Test Force Actions write formula when current_value=0 (skip_read)."""
+
+        # The Force Actions write formula (using 'option' parameter, without final masking)
+        formula_str = """
+            # Clear all force action bits first
+            value &= ~((1 << 23) | (1 << 16) | (1 << 11) | (1 << 8) |
+                       (1 << 4) | (1 << 3) | (1 << 2))
+
+            # Set the appropriate bit based on selection
+            if option == "Reset Faults":
+                value |= 1 << 23
+            elif option == "Reset Auto EQ Counter":
+                value |= 1 << 16
+            elif option == "Sweep/Re-track":
+                value |= 1 << 11
+            elif option == "New Day":
+                value |= 1 << 8
+            elif option == "Reset Info Flags":
+                value |= 1 << 4
+            elif option == "EEPROM Init Read":
+                value |= 1 << 3
+            elif option == "EEPROM Update":
+                value |= 1 << 2
+
+        """
+
+        # Create the function with 2 arguments: (value, option)
+        func = _create_formula_function(formula_str, 2, second_param_name="option")
+
+        # Test with current_value=0 and option="Reset Faults" (bit 23)
+        # Note: This formula does NOT have final masking - that happens in select.py
+        expected = 1 << 23  # Bit 23 = 8388608
+        result = func(0, "Reset Faults")
+        assert result == expected, f"Expected {expected} but got {result}"
+
+        # Test with current_value=0 and option="Reset Auto EQ Counter" (bit 16)
+        expected2 = 1 << 16  # Bit 16 = 65536
+        result2 = func(0, "Reset Auto EQ Counter") if func else None
+        assert result2 == expected2, f"Expected {expected2} but got {result2}"
 
 
 class TestForceActionsFormulas:

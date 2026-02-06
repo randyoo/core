@@ -135,3 +135,18 @@ AUX2_FUNCTIONS = [
     "PWM",
     "PVHiAbs",
 ]
+
+# Charge mode mappings (from register 4162)
+CHARGE_MODES = {
+    0: "Standard",
+    1: "PV Only",
+    2: "Battery Only",
+    3: "Manual",
+}
+
+# Communication mode mappings (from register 4163)
+COMMUNICATION_MODES = {
+    0: "Modbus RTU",
+    1: "Modbus TCP",
+    2: "MidNite Network",
+}
