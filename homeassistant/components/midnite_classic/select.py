@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any, cast
 
@@ -214,43 +215,64 @@ def create_select_class(definition: Any):
                 return [opt for opt in options_list if opt is not None]
             return []
 
+        async def _read_register_value(self, register_address: int) -> int | None:
+            """Read a register value with error handling."""
+            try:
+                current_register_value = await self.hass.async_add_executor_job(
+                    self.coordinator.api.read_holding_registers,
+                    int(register_address),
+                    1,
+                )
+                if not current_register_value:
+                    _LOGGER.error(
+                        "Failed to read current value from register %s",
+                        register_address,
+                    )
+                    return None
+                return current_register_value[0]
+            except Exception as exc:  # noqa: BLE001
+                _LOGGER.error(
+                    "Failed to read register %s: %s",
+                    register_address,
+                    exc,
+                )
+                return None
+
         async def async_select_option(self, option: str) -> None:
             """Change the selected option."""
-            # For write-only registers (like 4160), skip reading and use 0 as starting value
-            # The write formula will clear bits and set the new option
-            if self._definition.register_address in (4160, 4161):
-                current_value = 0
-            else:
-                # Read current value from register first
-                try:
-                    current_register_value = await self.hass.async_add_executor_job(
-                        self.coordinator.api.read_holding_registers,
-                        int(self._definition.register_address),
-                        1,
-                    )
-                    if not current_register_value:
-                        _LOGGER.error(
-                            "Failed to read current value from register %s",
-                            self._definition.register_address,
-                        )
-                        return
+            register_address = self._definition.register_address
 
-                    current_value = current_register_value[0]
+            # Determine if we should skip reading (write-only registers)
+            skip_read = register_address in (4160, 4161)
+
+            # Determine if write formula takes only 1 argument
+            uses_single_arg = False
+            if callable(self._definition.write_formula):
+                try:
+                    sig = inspect.signature(self._definition.write_formula)
+                    if len(sig.parameters) == 1:
+                        uses_single_arg = True
                 except Exception as exc:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Failed to read register %s: %s",
-                        self._definition.register_address,
-                        exc,
-                    )
-                    return
+                    _LOGGER.debug("Could not inspect write formula signature: %s", exc)
+
+            # Read current value unless skip_read is True
+            current_value = 0
+            if not skip_read:
+                read_result = await self._read_register_value(register_address)
+                if read_result is not None:
+                    current_value = read_result
 
             # Compute the register value using write formula
             if callable(self._definition.write_formula):
                 try:
-                    # Call write formula with (option, current_value)
-                    register_value = self._definition.write_formula(
-                        option, current_value
-                    )
+                    if uses_single_arg:
+                        # Write formula takes only option
+                        register_value = self._definition.write_formula(option)
+                    else:
+                        # Write formula takes (option, current_value)
+                        register_value = self._definition.write_formula(
+                            option, current_value
+                        )
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.error(
                         "Error in write formula for select %s: %s",
@@ -282,7 +304,7 @@ def create_select_class(definition: Any):
                     "Write protection enabled - select %s would write %s to register %s",
                     self._attr_name,
                     register_value_int,
-                    self._definition.register_address,
+                    register_address,
                 )
                 return
 
@@ -290,7 +312,7 @@ def create_select_class(definition: Any):
             try:
                 await self.hass.async_add_executor_job(
                     self.coordinator.api.write_register,
-                    int(self._definition.register_address),
+                    int(register_address),
                     register_value_int,
                 )
 
@@ -298,7 +320,7 @@ def create_select_class(definition: Any):
                     "Select %s wrote %s to register %s",
                     self._attr_name,
                     register_value_int,
-                    self._definition.register_address,
+                    register_address,
                 )
 
                 # Force a refresh to show the updated value
@@ -307,7 +329,7 @@ def create_select_class(definition: Any):
                 _LOGGER.error(
                     "Failed to write select %s to register %s: %s",
                     self._definition.key,
-                    self._definition.register_address,
+                    register_address,
                     exc,
                 )
 
