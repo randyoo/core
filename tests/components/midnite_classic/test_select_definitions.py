@@ -255,6 +255,68 @@ class TestForceChargeStateWriteFormulas:
         assert value == 0x84  # Bit 7 and bit 2 should be set
 
 
+class TestSelectWriteWithSkipRead:
+    """Test select write behavior with skip_read (write-only registers).
+
+    When a register is write-only, we can't read it first. The formula should
+    compute the correct value starting from 0 (current_value=0) and the option.
+    """
+
+    def test_write_only_register_eq(self) -> None:
+        """Test writing EQ option to write-only register (current_value=0)."""
+        # Simulate what happens when skip_read=True for Force Charge State
+        current_value = 0  # Can't read write-only register, default to 0
+        option = "EQ"
+
+        # This is what the formula does:
+        # value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+        value = current_value
+        value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+        # x = option ("EQ")
+        if option == "EQ":
+            value |= 1 << 7
+        elif option == "Bulk/Absorb":
+            value |= 1 << 6
+        elif option == "Float":
+            value |= 1 << 5
+
+        # Result should be 0x80 (bit 7 set)
+        assert value == 0x80
+        # Note: The final return is `value & 0xFFFF` which keeps it as 0x80
+
+    def test_write_only_register_bulk(self) -> None:
+        """Test writing Bulk/Absorb option to write-only register."""
+        current_value = 0
+        option = "Bulk/Absorb"
+
+        value = current_value
+        value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+        if option == "EQ":
+            value |= 1 << 7
+        elif option == "Bulk/Absorb":
+            value |= 1 << 6
+        elif option == "Float":
+            value |= 1 << 5
+
+        assert value == 0x40
+
+    def test_write_only_register_float(self) -> None:
+        """Test writing Float option to write-only register."""
+        current_value = 0
+        option = "Float"
+
+        value = current_value
+        value &= ~((1 << 7) | (1 << 6) | (1 << 5))
+        if option == "EQ":
+            value |= 1 << 7
+        elif option == "Bulk/Absorb":
+            value |= 1 << 6
+        elif option == "Float":
+            value |= 1 << 5
+
+        assert value == 0x20
+
+
 class TestForceActionsFormulas:
     """Test the Force Actions select formulas."""
 

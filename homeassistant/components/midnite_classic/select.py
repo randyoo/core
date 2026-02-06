@@ -60,9 +60,9 @@ def _create_formula_function(formula_str: str, arg_count: int) -> Any:
 
     # Create the function based on number of arguments
     if arg_count == 2:
-        # For formulas that take (value, data) - like current_option
+        # For formulas that take (value, x) - where value is computed value and x is option
         func_str = f"""
-def formula_func(value, data):
+def formula_func(value, x):
     {formula_str}
     return value
 """
@@ -265,13 +265,17 @@ def create_select_class(definition: Any):
             # Compute the register value using write formula
             if callable(self._definition.write_formula):
                 try:
+                    # For skip_read (write-only), current_value will be 0
+                    # The formula needs to compute register value from option + current_value
+
                     if uses_single_arg:
                         # Write formula takes only option
                         register_value = self._definition.write_formula(option)
                     else:
-                        # Write formula takes (option, current_value)
+                        # Write formula takes (current_value, option) - notice reversed order
+                        # current_value is the second parameter in formula
                         register_value = self._definition.write_formula(
-                            option, current_value
+                            current_value, option
                         )
                 except Exception as exc:  # noqa: BLE001
                     _LOGGER.error(
