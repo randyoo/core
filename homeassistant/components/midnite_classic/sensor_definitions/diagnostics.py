@@ -47,10 +47,10 @@ DIAGNOSTIC_SENSORS = [
             internal_state_value = data.get(4120, 0) & 0xFF
             internal_state = INTERNAL_STATES.get(internal_state_value, f"Unknown ({internal_state_value})")
 
-            # If internal state is "Resting", show the rest reason
+            # If internal state is "Resting", show the rest reason with "Rest: " prefix
             # Otherwise, show the internal state
             if internal_state == "Resting":
-                value = rest_reason
+                value = f"Rest: {rest_reason}"
             else:
                 value = internal_state
         """,

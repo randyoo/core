@@ -342,8 +342,27 @@ def create_select_class(definition: Any):
                 )
                 return
 
-            # Modbus registers are 16-bit, so mask with 0xFFFF to ensure value fits
-            register_value_int = register_value_int & 0xFFFF
+            # Determine which register to write to based on the option
+            # For high bits (bits 16+), we need to write to the secondary register
+            # The write formula should return a 32-bit combined value (high << 16 | low)
+            # Extract the high and low values
+            combined_value = (
+                register_value_int & 0xFFFFFFFF
+            )  # Ensure it's a 32-bit value
+            low_value = combined_value & 0xFFFF  # Low 16 bits
+            high_value = (combined_value >> 16) & 0xFFFF  # High 16 bits
+
+            # Determine register address based on whether high bits are set
+            # If high bits (16+) are set in low_value, write to secondary register instead
+            if self._definition.secondary_registers and high_value > 0:
+                # High bits are being set, write to secondary register
+                register_address = self._definition.secondary_registers[0]
+                # Extract the high value to write
+                register_value_int = high_value
+            else:
+                # Write to primary register (low bits)
+                register_address = self._definition.register_address
+                register_value_int = low_value
 
             # Check if writes are enabled before proceeding
             if not self.coordinator.api.writes_enabled:

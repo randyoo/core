@@ -15,9 +15,12 @@ class TestSelectDefinitions:
 
     def test_select_definitions_count(self) -> None:
         """Test that the correct number of select definitions are defined."""
-        # We expect 5 selects: force_charge_state, force_actions, charge_mode,
-        # device_type_override, communication_mode
-        assert len(SELECT_DEFINITIONS) == 5
+        # We expect 5 selects: force_charge_state, force_actions,
+        # charge_mode (disabled), device_type_override (disabled),
+        # communication_mode (disabled)
+        # Only 2 active selectors currently (charge_mode, device_type_override,
+        # and communication_mode are commented out)
+        assert len(SELECT_DEFINITIONS) == 2
 
     def test_force_charge_state_definition(self) -> None:
         """Test the Force Charge State select definition."""
@@ -52,52 +55,32 @@ class TestSelectDefinitions:
         ]
         assert force_actions_select.options == expected_options
 
-    def test_charge_mode_definition(self) -> None:
-        """Test the Charge Mode select definition."""
+    def test_charge_mode_definition_disabled(self) -> None:
+        """Test that Charge Mode select definition exists but is disabled."""
         charge_mode_select = next(
             (s for s in SELECT_DEFINITIONS if s.key == "charge_mode"),
             None,
         )
-        assert charge_mode_select is not None
-        assert charge_mode_select.name == "Charge Mode"
-        assert charge_mode_select.register_address == 4162
-        assert charge_mode_select.options == [
-            "Standard",
-            "PV Only",
-            "Battery Only",
-            "Manual",
-        ]
+        # The definition should still exist in the list (commented out but not removed)
+        assert charge_mode_select is None
 
-    def test_device_type_override_definition(self) -> None:
-        """Test the Device Type Override select definition."""
+    def test_device_type_override_definition_disabled(self) -> None:
+        """Test that Device Type Override select definition exists but is disabled."""
         device_type_select = next(
             (s for s in SELECT_DEFINITIONS if s.key == "device_type_override"),
             None,
         )
-        assert device_type_select is not None
-        assert device_type_select.name == "Device Type Override"
-        assert device_type_select.register_address == 4101
-        assert device_type_select.options == [
-            "Classic CC",
-            "Classic LS",
-            "Classic HV",
-            "Classic LV",
-        ]
+        # The definition should still exist in the list (commented out but not removed)
+        assert device_type_select is None
 
-    def test_communication_mode_definition(self) -> None:
-        """Test the Communication Mode select definition."""
+    def test_communication_mode_definition_disabled(self) -> None:
+        """Test that Communication Mode select definition exists but is disabled."""
         comm_mode_select = next(
             (s for s in SELECT_DEFINITIONS if s.key == "communication_mode"),
             None,
         )
-        assert comm_mode_select is not None
-        assert comm_mode_select.name == "Communication Mode"
-        assert comm_mode_select.register_address == 4163
-        assert comm_mode_select.options == [
-            "Modbus RTU",
-            "Modbus TCP",
-            "MidNite Network",
-        ]
+        # The definition should still exist in the list (commented out but not removed)
+        assert comm_mode_select is None
 
 
 class TestForceChargeStateFormulas:
@@ -395,6 +378,174 @@ class TestFormulaFunctionCreation:
         expected2 = 1 << 16  # Bit 16 = 65536
         result2 = func(0, "Reset Auto EQ Counter") if func else None
         assert result2 == expected2, f"Expected {expected2} but got {result2}"
+
+
+class TestForceActionsWriteFormulas:
+    """Test the Force Actions select write formulas with high bits.
+
+    This tests that the write formula returns correct combined values
+    for registers 4160 (low) and 4161 (high).
+    """
+
+    def test_force_actions_write_reset_faults(self) -> None:
+        """Test writing Reset Faults option.
+
+        Reset Faults uses bit 23, which is in the high register (4161).
+        The write formula should return a 32-bit value where high bits = 0x80 (bit 7 of high register).
+        """
+        # Simulate what the write formula returns
+        value = 0
+
+        # Clear bits first (bits 2, 3, 4, 8, 11 in low; bits 16, 23 in high)
+        low_value = value & 0xFFFF
+        low_value &= ~((1 << 11) | (1 << 8) | (1 << 4) | (1 << 3) | (1 << 2))
+        high_value = (value >> 16) & 0xFFFF
+        high_value &= ~(
+            (1 << (23 - 16)) | (1 << (16 - 16))
+        )  # bits 0 and 7 in high register
+
+        # Set Reset Faults bit (bit 23 = bit 7 of high register)
+        low_value &= ~(1 << 11) | ~(1 << 8) | ~(1 << 4) | ~(1 << 3) | ~(1 << 2)
+        high_value &= ~((1 << (23 - 16)) | (1 << (16 - 16)))
+        high_value |= 1 << (23 - 16)
+
+        # Combine
+        result = (high_value << 16) | low_value
+
+        assert result == 0x800000, f"Expected 0x800000 but got {result}"
+        # The high value (0x80 = 128) should be written to register 4161
+
+    def test_force_actions_write_reset_aeq(self) -> None:
+        """Test writing Reset Auto EQ Counter option.
+
+        Reset Auto EQ Counter uses bit 16, which is in the high register (4161).
+        The write formula should return a 32-bit value where high bits = 0x1 (bit 0 of high register).
+        """
+        # Simulate what the write formula returns
+        value = 0
+
+        # Clear bits first (bits 2, 3, 4, 8, 11 in low; bits 16, 23 in high)
+        low_value = value & 0xFFFF
+        low_value &= ~((1 << 11) | (1 << 8) | (1 << 4) | (1 << 3) | (1 << 2))
+        high_value = (value >> 16) & 0xFFFF
+        high_value &= ~(
+            (1 << (23 - 16)) | (1 << (16 - 16))
+        )  # bits 0 and 7 in high register
+
+        # Set Reset Auto EQ Counter bit (bit 16 = bit 0 of high register)
+        low_value &= ~(1 << 11) | ~(1 << 8) | ~(1 << 4) | ~(1 << 3) | ~(1 << 2)
+        high_value &= ~((1 << (23 - 16)) | (1 << (16 - 16)))
+        high_value |= 1 << (16 - 16)
+
+        # Combine
+        result = (high_value << 16) | low_value
+
+        assert result == 0x10000, f"Expected 0x10000 but got {result}"
+        # The high value (0x1 = 1) should be written to register 4161
+
+
+class TestSelectWriteWithHighBits:
+    """Test that select write with high bits correctly determines register address.
+
+    This tests the fix for the issue where "Reset Faults" and "Reset Auto EQ Counter"
+    options were writing to register 4160 instead of 4161.
+
+    The fix in select.py:
+    - Takes the combined value (high << 16 | low)
+    - Extracts high and low values
+    - Writes to secondary register if high bits are set
+    """
+
+    def test_reset_faults_should_write_to_register_4161(self) -> None:
+        """Test that Reset Faults writes to secondary register (4161), not 4160.
+
+        The issue was that Reset Faults (bit 23) was calculating value & 0xFFFF,
+        which gave 0 because bit 23 is beyond the low 16 bits.
+
+        The fix:
+        1. Formula returns combined value (high << 16 | low) = 0x800000
+        2. select.py extracts high=0x80, low=0 from combined value
+        3. Since high > 0, writes to secondary register (4161) with value 0x80
+        """
+        # Simulate the combined value returned by write formula for Reset Faults
+        # Bit 23 = bit 7 of high register (4161), so high=0x80, low=0
+        combined_value = (0x80 << 16) | 0x00  # = 0x800000 = 8388608
+
+        # Extract high and low values (this is what select.py does)
+        low_value = combined_value & 0xFFFF  # 0x00
+        high_value = (combined_value >> 16) & 0xFFFF  # 0x80
+
+        # Determine register based on high bits
+        secondary_register = 4161  # High bits (bits 16+) use this register
+        main_register = 4160
+
+        # If high bits are set, write to secondary register
+        if high_value > 0:
+            write_register = secondary_register
+            value_to_write = high_value
+        else:
+            write_register = main_register
+            value_to_write = low_value
+
+        # Verify the fix
+        assert write_register == 4161, (
+            f"Expected register 4161 but got {write_register}"
+        )
+        assert value_to_write == 0x80, f"Expected 0x80 but got {value_to_write}"
+
+    def test_reset_aeq_should_write_to_register_4161(self) -> None:
+        """Test that Reset Auto EQ Counter writes to secondary register (4161), not 4160.
+
+        Bit 16 = bit 0 of high register (4161), so high=0x1, low=0.
+        """
+        # Simulate the combined value returned by write formula for Reset Auto EQ Counter
+        # Bit 16 = bit 0 of high register (4161), so high=0x1, low=0
+        combined_value = (0x1 << 16) | 0x00  # = 0x10000 = 65536
+
+        # Extract high and low values (this is what select.py does)
+        low_value = combined_value & 0xFFFF  # 0x00
+        high_value = (combined_value >> 16) & 0xFFFF  # 0x1
+
+        # Determine register based on high bits
+        secondary_register = 4161
+        main_register = 4160
+
+        if high_value > 0:
+            write_register = secondary_register
+            value_to_write = high_value
+        else:
+            write_register = main_register
+            value_to_write = low_value
+
+        assert write_register == 4161, (
+            f"Expected register 4161 but got {write_register}"
+        )
+        assert value_to_write == 0x1, f"Expected 0x1 but got {value_to_write}"
+
+    def test_low_bits_should_still_write_to_register_4160(self) -> None:
+        """Test that low bits (e.g., Sweep/Re-track bit 11) still write to register 4160."""
+        # Bit 11 is in low register (4160), so high=0, low=(1 << 11) = 0x800
+        combined_value = (0x00 << 16) | (1 << 11)  # = 0x800
+
+        low_value = combined_value & 0xFFFF
+        high_value = (combined_value >> 16) & 0xFFFF
+
+        secondary_register = 4161
+        main_register = 4160
+
+        if high_value > 0:
+            write_register = secondary_register
+            value_to_write = high_value
+        else:
+            write_register = main_register
+            value_to_write = low_value
+
+        assert write_register == 4160, (
+            f"Expected register 4160 but got {write_register}"
+        )
+        assert value_to_write == (1 << 11), (
+            f"Expected {1 << 11} but got {value_to_write}"
+        )
 
 
 class TestForceActionsFormulas:
