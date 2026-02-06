@@ -34,11 +34,11 @@ SELECT_DEFINITIONS = [
             value &= ~((1 << 7) | (1 << 6) | (1 << 5))
 
             # Set the appropriate bit based on selection
-            if x == "EQ":
+            if option == "EQ":
                 value |= 1 << 7
-            elif x == "Bulk/Absorb":
+            elif option == "Bulk/Absorb":
                 value |= 1 << 6
-            elif x == "Float":
+            elif option == "Float":
                 value |= 1 << 5
 
             return value & 0xFFFF
@@ -83,19 +83,19 @@ SELECT_DEFINITIONS = [
                        (1 << 4) | (1 << 3) | (1 << 2))
 
             # Set the appropriate bit based on selection
-            if x == "Reset Faults":
+            if option == "Reset Faults":
                 value |= 1 << 23
-            elif x == "Reset Auto EQ Counter":
+            elif option == "Reset Auto EQ Counter":
                 value |= 1 << 16
-            elif x == "Sweep/Re-track":
+            elif option == "Sweep/Re-track":
                 value |= 1 << 11
-            elif x == "New Day":
+            elif option == "New Day":
                 value |= 1 << 8
-            elif x == "Reset Info Flags":
+            elif option == "Reset Info Flags":
                 value |= 1 << 4
-            elif x == "EEPROM Init Read":
+            elif option == "EEPROM Init Read":
                 value |= 1 << 3
-            elif x == "EEPROM Update":
+            elif option == "EEPROM Update":
                 value |= 1 << 2
 
             return value & 0xFFFF
