@@ -198,6 +198,8 @@ def create_select_class(definition: Any):
                         self._attr_name,
                         exc,
                     )
+                    # For write-only registers, return None as current option
+                    # The user will select an option to change the state
                     return None
             else:
                 # Fallback - shouldn't happen with proper definitions
@@ -214,28 +216,33 @@ def create_select_class(definition: Any):
 
         async def async_select_option(self, option: str) -> None:
             """Change the selected option."""
-            # Read current value from register first
-            try:
-                current_register_value = await self.hass.async_add_executor_job(
-                    self.coordinator.api.read_holding_registers,
-                    int(self._definition.register_address),
-                    1,
-                )
-                if not current_register_value:
+            # For write-only registers (like 4160), skip reading and use 0 as starting value
+            # The write formula will clear bits and set the new option
+            if self._definition.register_address in (4160, 4161):
+                current_value = 0
+            else:
+                # Read current value from register first
+                try:
+                    current_register_value = await self.hass.async_add_executor_job(
+                        self.coordinator.api.read_holding_registers,
+                        int(self._definition.register_address),
+                        1,
+                    )
+                    if not current_register_value:
+                        _LOGGER.error(
+                            "Failed to read current value from register %s",
+                            self._definition.register_address,
+                        )
+                        return
+
+                    current_value = current_register_value[0]
+                except Exception as exc:  # noqa: BLE001
                     _LOGGER.error(
-                        "Failed to read current value from register %s",
+                        "Failed to read register %s: %s",
                         self._definition.register_address,
+                        exc,
                     )
                     return
-
-                current_value = current_register_value[0]
-            except Exception as exc:  # noqa: BLE001
-                _LOGGER.error(
-                    "Failed to read register %s: %s",
-                    self._definition.register_address,
-                    exc,
-                )
-                return
 
             # Compute the register value using write formula
             if callable(self._definition.write_formula):
