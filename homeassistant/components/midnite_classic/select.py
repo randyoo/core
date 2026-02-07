@@ -193,6 +193,55 @@ async def async_setup_entry(
     async_add_entities(selects)
 
 
+def _execute_write_formula(
+    coordinator: MidniteClassicCoordinator,
+    definition: Any,
+    option: str,
+    current_value: int,
+) -> int | None:
+    """Execute the write formula and return the computed register value.
+
+    Returns None if there's an error or non-numeric result.
+    """
+    uses_single_arg = False
+    if callable(definition.write_formula):
+        try:
+            sig = inspect.signature(definition.write_formula)
+            if len(sig.parameters) == 1:
+                uses_single_arg = True
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        if uses_single_arg:
+            register_value = definition.write_formula(option)
+        else:
+            register_value = definition.write_formula(current_value, option)
+
+        if isinstance(register_value, (int, float)):
+            return int(register_value)
+    except Exception:  # noqa: BLE001
+        _LOGGER.debug(
+            "Error in write formula for select %s",
+            definition.name,
+        )
+    return None
+
+
+def _determine_write_register(definition: Any, combined_value: int) -> tuple[int, int]:
+    """Determine register address and value to write.
+
+    Returns (register_address, register_value_int).
+    """
+    combined_value = combined_value & 0xFFFFFFFF
+    low_value = combined_value & 0xFFFF
+    high_value = (combined_value >> 16) & 0xFFFF
+
+    if definition.secondary_registers and high_value > 0:
+        return (definition.secondary_registers[0], high_value)
+    return (definition.register_address, low_value)
+
+
 def create_select_class(definition: Any):
     """Dynamically create a select class for the given definition."""
 
@@ -288,16 +337,6 @@ def create_select_class(definition: Any):
             # Determine if we should skip reading (write-only registers)
             skip_read = register_address in (4160, 4161)
 
-            # Determine if write formula takes only 1 argument
-            uses_single_arg = False
-            if callable(self._definition.write_formula):
-                try:
-                    sig = inspect.signature(self._definition.write_formula)
-                    if len(sig.parameters) == 1:
-                        uses_single_arg = True
-                except Exception as exc:  # noqa: BLE001
-                    _LOGGER.debug("Could not inspect write formula signature: %s", exc)
-
             # Read current value unless skip_read is True
             current_value = 0
             if not skip_read:
@@ -306,69 +345,22 @@ def create_select_class(definition: Any):
                     current_value = read_result
 
             # Compute the register value using write formula
-            if callable(self._definition.write_formula):
-                try:
-                    # For skip_read (write-only), current_value will be 0
-                    # The formula needs to compute register value from option + current_value
-
-                    if uses_single_arg:
-                        # Write formula takes only option
-                        register_value = self._definition.write_formula(option)
-                    else:
-                        # Write formula takes (current_value, option) - notice reversed order
-                        # current_value is the second parameter in formula
-                        register_value = self._definition.write_formula(
-                            current_value, option
-                        )
-                except Exception as exc:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Error in write formula for select %s: %s",
-                        self._attr_name,
-                        exc,
-                    )
-                    return
-            else:
-                # Fallback for string formulas - shouldn't happen after conversion
-                register_value = 0
-
-            # Ensure register_value is an integer
-            if isinstance(register_value, (int, float)):
-                register_value_int = int(register_value)
-            else:
-                _LOGGER.error(
-                    "Write formula for select %s returned non-numeric value: %s",
-                    self._attr_name,
-                    type(register_value),
-                )
+            register_value = _execute_write_formula(
+                self.coordinator, self._definition, option, current_value
+            )
+            if register_value is None:
                 return
 
-            # Determine which register to write to based on the option
-            # For high bits (bits 16+), we need to write to the secondary register
-            # The write formula should return a 32-bit combined value (high << 16 | low)
-            # Extract the high and low values
-            combined_value = (
-                register_value_int & 0xFFFFFFFF
-            )  # Ensure it's a 32-bit value
-            low_value = combined_value & 0xFFFF  # Low 16 bits
-            high_value = (combined_value >> 16) & 0xFFFF  # High 16 bits
-
-            # Determine register address based on whether high bits are set
-            # If high bits (16+) are set in low_value, write to secondary register instead
-            if self._definition.secondary_registers and high_value > 0:
-                # High bits are being set, write to secondary register
-                register_address = self._definition.secondary_registers[0]
-                # Extract the high value to write
-                register_value_int = high_value
-            else:
-                # Write to primary register (low bits)
-                register_address = self._definition.register_address
-                register_value_int = low_value
+            # Determine which register to write to and the value
+            register_address, register_value_int = _determine_write_register(
+                self._definition, register_value
+            )
 
             # Check if writes are enabled before proceeding
             if not self.coordinator.api.writes_enabled:
                 _LOGGER.info(
                     "Write protection enabled - select %s would write %s to register %s",
-                    self._attr_name,
+                    self._definition.name,
                     register_value_int,
                     register_address,
                 )
@@ -384,7 +376,7 @@ def create_select_class(definition: Any):
 
                 _LOGGER.info(
                     "Select %s wrote %s to register %s",
-                    self._attr_name,
+                    self._definition.name,
                     register_value_int,
                     register_address,
                 )

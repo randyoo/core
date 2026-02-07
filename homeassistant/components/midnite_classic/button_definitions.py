@@ -53,32 +53,24 @@ def create_force_flag_button(key: str, bit: int, name: str, register: int):
 # See "Force Charge State" and "Force Actions" selectors in select_definitions.py.
 
 # Low 16 bits (register 4160) - non-reserved bits
+# All button definitions are commented out because their actions are now covered by the
+# "Force Charge State" and "Force Actions" select entities in select_definitions.py.
 LOW_16_BUTTONS: Final[list[ButtonDefinition]] = [
-    # TODO: Force EEPROM Update button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("eeprom_update", 2, "Force EEPROM Update", 4160),
-    # TODO: Force EEPROM Init Read button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("eeprom_init_read", 3, "Force EEPROM Init Read", 4160),
-    # TODO: Force Reset Info Flags button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("reset_info_flags", 4, "Force Reset Info Flags", 4160),
-    # TODO: Force Float Charge button - disabled as it's covered by "Force Charge State" selector
     # create_force_flag_button("float_charge", 5, "Force Float Charge", 4160),
-    # TODO: Force Bulk/Absorb Charge button - disabled as it's covered by "Force Charge State" selector
     # create_force_flag_button("bulk_charge", 6, "Force Bulk/Absorb Charge", 4160),
-    # TODO: Force Equalize Charge button - disabled as it's covered by "Force Charge State" selector
     # create_force_flag_button("equalize_charge", 7, "Force Equalize Charge", 4160),
-    # TODO: Force New Day button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("force_nite", 8, "Force New Day", 4160),
-    # TODO: Force Sweep/Re-track button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("sweep_track", 11, "Force Sweep/Re-track", 4160),
 ]
 
 # High 16 bits (register 4161) - non-reserved bits
 HIGH_16_BUTTONS: Final[list[ButtonDefinition]] = [
-    # TODO: Force Reset Auto EQ Counter button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button(
     #     "reset_aeq_counts", 16, "Force Reset Auto EQ Counter", 4161
     # ),
-    # TODO: Force Reset Faults button - disabled as it's covered by "Force Actions" selector
     # create_force_flag_button("reset_faults", 23, "Force Reset Faults", 4161),
 ]
 

@@ -132,83 +132,8 @@ SELECT_DEFINITIONS = [
             "EEPROM Update",
         ],
     ),
-    # TODO: Charge mode selection - disabled for now, to be re-enabled and tested later
-    # SelectDefinition(
-    #     key="charge_mode",
-    #     name="Charge Mode",
-    #     register_group="settings",
-    #     register_address=4162,
-    #     formula="""
-    #         from .const import CHARGE_MODES
-    #         return CHARGE_MODES.get(value, f"Unknown ({value})")
-    #     """,
-    #     write_formula="""
-    #         from .const import CHARGE_MODES
-    #         for mode_value, mode_name in CHARGE_MODES.items():
-    #             if mode_name == value:
-    #                 return mode_value
-    #         return 0  # Default to standard charging
-    #     """,
-    #     options=[
-    #         "Standard",
-    #         "PV Only",
-    #         "Battery Only",
-    #         "Manual",
-    #     ],
-    # ),
-    # TODO: Device type override - disabled for now, to be re-enabled and tested later
-    # SelectDefinition(
-    #     key="device_type_override",
-    #     name="Device Type Override",
-    #     register_group="settings",
-    #     register_address=4101,
-    #     formula="""
-    #         from .const import DEVICE_TYPES
-    #         return DEVICE_TYPES.get(value & 0xFF, f"Unknown ({value & 0xFF})")
-    #     """,
-    #     write_formula="""
-    #         from .const import DEVICE_TYPES
-    #         for device_value, device_name in DEVICE_TYPES.items():
-    #             if device_name == value:
-    #                 return device_value
-    #         return 1  # Default to Classic CC
-    #     """,
-    #     options=[
-    #         "Classic CC",
-    #         "Classic LV",
-    #         "Classic 250",
-    #         "Classic 150",
-    #         "Classic 175",
-    #         "Classic 200",
-    #         "Classic 250SE",
-    #         "Classic 150SE",
-    #         "Classic 175SE",
-    #         "Classic 200SE",
-    #     ],
-    # ),
-    # TODO: Communication mode selection - disabled for now, to be re-enabled and tested later
-    # SelectDefinition(
-    #     key="communication_mode",
-    #     name="Communication Mode",
-    #     register_group="settings",
-    #     register_address=4163,
-    #     formula="""
-    #         from .const import COMMUNICATION_MODES
-    #         return COMMUNICATION_MODES.get(value, f"Unknown ({value})")
-    #     """,
-    #     write_formula="""
-    #         from .const import COMMUNICATION_MODES
-    #         for mode_value, mode_name in COMMUNICATION_MODES.items():
-    #             if mode_name == value:
-    #                 return mode_value
-    #         return 0  # Default to Modbus RTU
-    #     """,
-    #     options=[
-    #         "Modbus RTU",
-    #         "Modbus TCP",
-    #         "MidNite Network",
-    #     ],
-    # ),
+    # Disable charge mode, device type override, and communication mode selectors for now.
+    # These will be re-enabled and tested later when functionality is verified.
 ]
 
 # Total: 3 select entities defined (2 active, 1 disabled)
